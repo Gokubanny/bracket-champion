@@ -58,10 +58,14 @@ const CreateTournament = () => {
   const createMutation = useMutation({
     mutationFn: (data: FormData) =>
       tournamentService.create({
-        ...data,
+        name: data.name,
         sport: data.sport,
+        description: data.description,
+        teamSlots: data.teamSlots,
         startDate: data.startDate.toISOString(),
         registrationDeadline: data.registrationDeadline.toISOString(),
+        estimatedMatchDuration: data.estimatedMatchDuration,
+        visibility: data.visibility,
         banner: banner || undefined,
       }),
     onSuccess: (tournament) => {
