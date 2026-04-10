@@ -3,6 +3,7 @@ import type { LeaderboardEntry } from "@/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { Shield, Trophy, Medal } from "lucide-react";
+import CountUpNumber from "@/components/ui/CountUpNumber";
 
 interface LeaderboardTableProps {
   entries: LeaderboardEntry[];
@@ -14,9 +15,9 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, sport }) =
   const columns = config.leaderboardColumns;
 
   const getRankIcon = (rank: number) => {
-    if (rank === 1) return <Trophy className="h-4 w-4 text-warning" />;
-    if (rank === 2) return <Medal className="h-4 w-4 text-muted-foreground" />;
-    if (rank === 3) return <Medal className="h-4 w-4 text-sport-basketball" />;
+    if (rank === 1) return <Trophy className="h-4 w-4" style={{ color: "hsl(45, 93%, 47%)" }} />;
+    if (rank === 2) return <Medal className="h-4 w-4" style={{ color: "hsl(0, 0%, 75%)" }} />;
+    if (rank === 3) return <Medal className="h-4 w-4" style={{ color: "hsl(30, 60%, 50%)" }} />;
     return null;
   };
 
@@ -35,7 +36,11 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, sport }) =
         </TableHeader>
         <TableBody>
           {entries.map((entry, index) => (
-            <TableRow key={entry.team.id} className={cn(index < 3 && "bg-primary/5")}>
+            <TableRow
+              key={entry.team.id}
+              className={cn(index < 3 && "bg-primary/5")}
+              style={{ borderLeft: `3px solid ${entry.team.color || "transparent"}` }}
+            >
               {columns.map((col) => (
                 <TableCell key={col.key} className={cn("text-sm", col.key === "team" ? "text-left" : "text-center")}>
                   {col.key === "rank" ? (
@@ -51,7 +56,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, sport }) =
                       <span className="truncate">{entry.team.name}</span>
                     </div>
                   ) : (
-                    String(entry[col.key] ?? "—")
+                    <CountUpNumber value={Number(entry[col.key] ?? 0)} />
                   )}
                 </TableCell>
               ))}
