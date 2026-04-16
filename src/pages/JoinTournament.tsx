@@ -92,7 +92,7 @@ const JoinTournament = () => {
         repName: data.repName,
         repEmail: data.repEmail,
         repPassword: data.repPassword,
-        players: data.players,
+        players: data.players as Omit<import("@/types").Player, "id" | "teamId">[],
       }),
     onSuccess: () => {
       setSuccess(true);
