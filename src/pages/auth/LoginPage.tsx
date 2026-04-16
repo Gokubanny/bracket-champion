@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Trophy, Loader2 } from "lucide-react";
+import { Trophy, Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 const loginSchema = z.object({
@@ -22,6 +22,7 @@ const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -33,7 +34,6 @@ const LoginPage = () => {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      // Auth context will have the user, redirect based on role
       const response = await fetch("/api/auth/me", { credentials: "include" }).catch(() => null);
       const user = response ? await response.json().catch(() => null) : null;
       navigate(user?.role === "admin" ? "/admin/dashboard" : "/viewer/dashboard");
@@ -45,7 +45,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4">
       <Card className="w-full max-w-md glass-card">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
@@ -77,7 +77,16 @@ const LoginPage = () => {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
+                      <div className="relative">
+                        <Input type={showPassword ? "text" : "password"} placeholder="••••••••" {...field} className="pr-10" />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
