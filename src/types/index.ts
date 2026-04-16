@@ -23,6 +23,7 @@ export interface Tournament {
   inviteCode: string;
   createdAt: string;
   teamCount: number;
+  adminName?: string;
 }
 
 export interface Team {
@@ -89,4 +90,12 @@ export interface DashboardStats {
   activeTournaments: number;
   pendingApprovals: number;
   upcomingMatchesToday: number;
+  totalTeams?: number;
+  totalMatches?: number;
+}
+
+export interface PlatformStats {
+  totalTournaments: number;
+  totalTeams: number;
+  totalMatches: number;
 }

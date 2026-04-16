@@ -12,6 +12,9 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
+import BrowseTournaments from "./pages/BrowseTournaments";
+import SportInfoPage from "./pages/SportInfoPage";
+import JoinTournament from "./pages/JoinTournament";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CreateTournament from "./pages/admin/CreateTournament";
 import AllTournaments from "./pages/admin/AllTournaments";
@@ -34,6 +37,9 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/tournaments" element={<BrowseTournaments />} />
+              <Route path="/sports/:sport" element={<SportInfoPage />} />
+              <Route path="/join/:inviteCode" element={<JoinTournament />} />
               <Route path="/tournament/:inviteCode" element={<PublicBracketPage />} />
             </Route>
 

@@ -1,6 +1,16 @@
 import api from "./api";
 import type { Team, Player } from "@/types";
 
+export interface RegisterTeamPayload {
+  teamName: string;
+  color: string;
+  logo?: File;
+  repName: string;
+  repEmail: string;
+  repPassword: string;
+  players: Omit<Player, "id" | "teamId">[];
+}
+
 export const teamService = {
   getByTournament: async (tournamentId: string): Promise<Team[]> => {
     const { data } = await api.get(`/tournaments/${tournamentId}/teams`);
@@ -36,6 +46,21 @@ export const teamService = {
 
   updateTeamInfo: async (teamId: string, payload: { name?: string; color?: string; badgeUrl?: string }): Promise<Team> => {
     const { data } = await api.put(`/teams/${teamId}`, payload);
+    return data;
+  },
+
+  registerTeam: async (tournamentId: string, payload: RegisterTeamPayload): Promise<Team> => {
+    const formData = new FormData();
+    formData.append("teamName", payload.teamName);
+    formData.append("color", payload.color);
+    formData.append("repName", payload.repName);
+    formData.append("repEmail", payload.repEmail);
+    formData.append("repPassword", payload.repPassword);
+    formData.append("players", JSON.stringify(payload.players));
+    if (payload.logo) formData.append("logo", payload.logo);
+    const { data } = await api.post(`/tournaments/${tournamentId}/teams/register`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return data;
   },
 };

@@ -1,5 +1,5 @@
 import api from "./api";
-import type { Tournament, DashboardStats, Activity, BracketData, LeaderboardEntry } from "@/types";
+import type { Tournament, DashboardStats, Activity, BracketData, LeaderboardEntry, PlatformStats } from "@/types";
 
 export interface CreateTournamentPayload {
   name: string;
@@ -16,6 +16,11 @@ export interface CreateTournamentPayload {
 export const tournamentService = {
   getAll: async (filters?: { status?: string; sport?: string; search?: string }): Promise<Tournament[]> => {
     const { data } = await api.get("/tournaments", { params: filters });
+    return data;
+  },
+
+  getFeatured: async (): Promise<Tournament[]> => {
+    const { data } = await api.get("/tournaments", { params: { featured: true, limit: 6 } });
     return data;
   },
 
@@ -71,6 +76,11 @@ export const tournamentService = {
 
   getRecentActivity: async (): Promise<Activity[]> => {
     const { data } = await api.get("/tournaments/dashboard/activity");
+    return data;
+  },
+
+  getPlatformStats: async (): Promise<PlatformStats> => {
+    const { data } = await api.get("/tournaments/stats");
     return data;
   },
 };

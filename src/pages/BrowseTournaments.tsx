@@ -13,18 +13,18 @@ import { Progress } from "@/components/ui/progress";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SportBadge from "@/components/ui/SportBadge";
 import EmptyState from "@/components/ui/EmptyState";
-import { Trophy, Search, Users, Calendar, PlusCircle } from "lucide-react";
+import { Trophy, Search, Users, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 
-const AllTournaments = () => {
+const BrowseTournaments = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sportFilter, setSportFilter] = useState<string>("all");
 
   const { data: tournaments, isLoading } = useQuery({
-    queryKey: ["tournaments", { search, status: statusFilter, sport: sportFilter }],
+    queryKey: ["public-tournaments", { search, status: statusFilter, sport: sportFilter }],
     queryFn: () => tournamentService.getAll({
       search: search || undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
@@ -33,36 +33,38 @@ const AllTournaments = () => {
   });
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold">All Tournaments</h1>
-        <Button onClick={() => navigate("/admin/tournaments/create")}>
-          <PlusCircle className="h-4 w-4 mr-1" /> Create New
-        </Button>
+    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold">Browse Tournaments</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {tournaments ? `${tournaments.length} tournament${tournaments.length !== 1 ? "s" : ""} found` : "Loading..."}
+          </p>
+        </div>
       </div>
 
+      {/* Filter bar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search tournaments..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="upcoming">Upcoming</SelectItem>
-            <SelectItem value="registration">Registration</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-          </SelectContent>
-        </Select>
         <Select value={sportFilter} onValueChange={setSportFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Sport" /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Sport" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Sports</SelectItem>
             {SPORT_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="registration">Registration Open</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -75,6 +77,8 @@ const AllTournaments = () => {
               <CardContent className="p-4 space-y-2">
                 <Skeleton className="h-5 w-3/4" />
                 <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-2 w-full" />
+                <Skeleton className="h-4 w-1/3" />
               </CardContent>
             </Card>
           ))}
@@ -87,16 +91,21 @@ const AllTournaments = () => {
             const slotsPercent = t.teamSlots > 0 ? Math.round((t.teamCount / t.teamSlots) * 100) : 0;
 
             return (
-              <motion.div key={t.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
+              <motion.div
+                key={t.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+              >
                 <Card
                   className="glass-card cursor-pointer hover:border-primary/50 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group overflow-hidden"
-                  onClick={() => navigate(`/admin/tournaments/${t.id}`)}
+                  onClick={() => navigate(`/tournament/${t.inviteCode}`)}
                 >
                   <div className="h-36 bg-muted relative overflow-hidden">
                     {t.bannerUrl ? (
                       <img src={t.bannerUrl} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     ) : (
-                      <div className="h-full flex items-center justify-center">
+                      <div className="h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
                         <Trophy className="h-12 w-12 text-muted-foreground/30" />
                       </div>
                     )}
@@ -122,9 +131,13 @@ const AllTournaments = () => {
                       <Progress value={slotsPercent} className="h-1.5" />
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {t.teamCount} teams</span>
                       <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {format(new Date(t.startDate), "MMM d, yyyy")}</span>
+                      <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {t.teamCount} teams</span>
                     </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Registration deadline: {format(new Date(t.registrationDeadline), "MMM d, yyyy")}
+                    </div>
+                    <Button size="sm" variant="outline" className="w-full">View Tournament</Button>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -133,14 +146,13 @@ const AllTournaments = () => {
         </div>
       ) : (
         <EmptyState
-          icon={<Trophy className="h-8 w-8" />}
-          title="No tournaments yet"
-          description="Create your first tournament to get started."
-          action={<Button onClick={() => navigate("/admin/tournaments/create")}><PlusCircle className="h-4 w-4 mr-1" /> Create Tournament</Button>}
+          icon={<Search className="h-8 w-8" />}
+          title="No tournaments found"
+          description="Try adjusting your filters or search term."
         />
       )}
     </div>
   );
 };
 
-export default AllTournaments;
+export default BrowseTournaments;

@@ -12,10 +12,13 @@ const sportColorClasses: Record<SportType, string> = {
   basketball: "bg-sport-basketball/20 text-sport-basketball border-sport-basketball/30",
   tennis: "bg-sport-tennis/20 text-sport-tennis border-sport-tennis/30",
   volleyball: "bg-sport-volleyball/20 text-sport-volleyball border-sport-volleyball/30",
+  cricket: "bg-sport-cricket/20 text-sport-cricket border-sport-cricket/30",
+  badminton: "bg-sport-badminton/20 text-sport-badminton border-sport-badminton/30",
 };
 
 const SportBadge: React.FC<SportBadgeProps> = ({ sport, className }) => {
   const config = SPORTS[sport];
+  if (!config) return null;
   const Icon = config.icon;
 
   return (

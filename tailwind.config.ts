@@ -71,6 +71,8 @@ export default {
           basketball: "hsl(var(--sport-basketball))",
           tennis: "hsl(var(--sport-tennis))",
           volleyball: "hsl(var(--sport-volleyball))",
+          cricket: "hsl(var(--sport-cricket))",
+          badminton: "hsl(var(--sport-badminton))",
         },
       },
       borderRadius: {

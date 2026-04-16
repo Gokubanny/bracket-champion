@@ -1,6 +1,6 @@
-import { Trophy, CircleDot, Target, Volleyball } from "lucide-react";
+import { Trophy, CircleDot, Target, Volleyball, Swords, Bird } from "lucide-react";
 
-export type SportType = "football" | "basketball" | "tennis" | "volleyball";
+export type SportType = "football" | "basketball" | "tennis" | "volleyball" | "cricket" | "badminton";
 
 export interface LeaderboardColumn {
   key: string;
@@ -13,6 +13,10 @@ export interface SportConfig {
   icon: typeof Trophy;
   colorVar: string;
   scoreLabel: string;
+  description: string;
+  positions: string[];
+  minSquad: number;
+  maxSquad: number;
   leaderboardColumns: LeaderboardColumn[];
 }
 
@@ -22,6 +26,10 @@ export const SPORTS: Record<SportType, SportConfig> = {
     icon: CircleDot,
     colorVar: "--sport-football",
     scoreLabel: "Goals",
+    description: "The beautiful game. 11v11 competitive football tournaments with full bracket and group stage support.",
+    positions: ["Goalkeeper", "Center Back", "Left Back", "Right Back", "Defensive Midfielder", "Central Midfielder", "Attacking Midfielder", "Left Winger", "Right Winger", "Striker"],
+    minSquad: 11,
+    maxSquad: 18,
     leaderboardColumns: [
       { key: "rank", label: "Rank", shortLabel: "#" },
       { key: "team", label: "Team", shortLabel: "Team" },
@@ -39,6 +47,10 @@ export const SPORTS: Record<SportType, SportConfig> = {
     icon: CircleDot,
     colorVar: "--sport-basketball",
     scoreLabel: "Points",
+    description: "Fast-paced 5v5 basketball tournaments. Track points scored, conceded and overall standings.",
+    positions: ["Point Guard", "Shooting Guard", "Small Forward", "Power Forward", "Center"],
+    minSquad: 5,
+    maxSquad: 12,
     leaderboardColumns: [
       { key: "rank", label: "Rank", shortLabel: "#" },
       { key: "team", label: "Team", shortLabel: "Team" },
@@ -55,6 +67,10 @@ export const SPORTS: Record<SportType, SportConfig> = {
     icon: Target,
     colorVar: "--sport-tennis",
     scoreLabel: "Sets",
+    description: "Singles or doubles tennis tournaments. Track sets won and match results across rounds.",
+    positions: ["Singles Player", "Doubles Player"],
+    minSquad: 1,
+    maxSquad: 4,
     leaderboardColumns: [
       { key: "rank", label: "Rank", shortLabel: "#" },
       { key: "team", label: "Player", shortLabel: "Player" },
@@ -70,6 +86,10 @@ export const SPORTS: Record<SportType, SportConfig> = {
     icon: Volleyball,
     colorVar: "--sport-volleyball",
     scoreLabel: "Sets",
+    description: "6v6 volleyball tournaments. Track sets and match results with automatic bracket progression.",
+    positions: ["Setter", "Outside Hitter", "Opposite Hitter", "Middle Blocker", "Libero", "Defensive Specialist"],
+    minSquad: 6,
+    maxSquad: 14,
     leaderboardColumns: [
       { key: "rank", label: "Rank", shortLabel: "#" },
       { key: "team", label: "Team", shortLabel: "Team" },
@@ -77,6 +97,45 @@ export const SPORTS: Record<SportType, SportConfig> = {
       { key: "won", label: "Won", shortLabel: "W" },
       { key: "lost", label: "Lost", shortLabel: "L" },
       { key: "setsWon", label: "Sets Won", shortLabel: "SW" },
+      { key: "points", label: "Points", shortLabel: "Pts" },
+    ],
+  },
+  cricket: {
+    name: "Cricket",
+    icon: Swords,
+    colorVar: "--sport-cricket",
+    scoreLabel: "Runs",
+    description: "Limited-overs cricket tournaments. Track runs, wickets and net run rate across matches.",
+    positions: ["Batsman", "Bowler", "All-Rounder", "Wicketkeeper", "Opening Batsman", "Middle Order"],
+    minSquad: 11,
+    maxSquad: 16,
+    leaderboardColumns: [
+      { key: "rank", label: "Rank", shortLabel: "#" },
+      { key: "team", label: "Team", shortLabel: "Team" },
+      { key: "played", label: "Played", shortLabel: "P" },
+      { key: "won", label: "Won", shortLabel: "W" },
+      { key: "lost", label: "Lost", shortLabel: "L" },
+      { key: "runsFor", label: "Runs For", shortLabel: "RF" },
+      { key: "runsAgainst", label: "Runs Against", shortLabel: "RA" },
+      { key: "points", label: "Points", shortLabel: "Pts" },
+    ],
+  },
+  badminton: {
+    name: "Badminton",
+    icon: Bird,
+    colorVar: "--sport-badminton",
+    scoreLabel: "Points",
+    description: "Singles and doubles badminton tournaments. Track games won and match progression.",
+    positions: ["Singles Player", "Doubles Player"],
+    minSquad: 1,
+    maxSquad: 4,
+    leaderboardColumns: [
+      { key: "rank", label: "Rank", shortLabel: "#" },
+      { key: "team", label: "Player", shortLabel: "Player" },
+      { key: "played", label: "Played", shortLabel: "P" },
+      { key: "won", label: "Won", shortLabel: "W" },
+      { key: "lost", label: "Lost", shortLabel: "L" },
+      { key: "gamesWon", label: "Games Won", shortLabel: "GW" },
       { key: "points", label: "Points", shortLabel: "Pts" },
     ],
   },
