@@ -46,7 +46,7 @@ const JoinTournament = () => {
     confirmPassword: z.string(),
     players: z.array(z.object({
       name: z.string().min(1, "Player name required"),
-      jerseyNumber: z.number().min(0, "Invalid number"),
+      jerseyNumber: z.coerce.number().min(0, "Invalid number"),
       position: z.string().min(1, "Position required"),
     })).min(sportConfig?.minSquad ?? 1, `Minimum ${sportConfig?.minSquad ?? 1} players required`),
   }).refine(d => d.repPassword === d.confirmPassword, {
