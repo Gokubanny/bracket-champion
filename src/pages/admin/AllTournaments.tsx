@@ -13,6 +13,8 @@ import { Progress } from "@/components/ui/progress";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SportBadge from "@/components/ui/SportBadge";
 import EmptyState from "@/components/ui/EmptyState";
+import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
+import { getSportImage } from "@/constants/sportImages";
 import { Trophy, Search, Users, Calendar, PlusCircle } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
@@ -33,7 +35,8 @@ const AllTournaments = () => {
   });
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
+      <PageBreadcrumbs items={[{ label: "Tournaments" }]} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">All Tournaments</h1>
         <Button onClick={() => navigate("/admin/tournaments/create")}>
@@ -92,14 +95,14 @@ const AllTournaments = () => {
                   className="glass-card cursor-pointer hover:border-primary/50 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group overflow-hidden"
                   onClick={() => navigate(`/admin/tournaments/${t.id}`)}
                 >
-                  <div className="h-36 bg-muted relative overflow-hidden">
-                    {t.bannerUrl ? (
-                      <img src={t.bannerUrl} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    ) : (
-                      <div className="h-full flex items-center justify-center">
-                        <Trophy className="h-12 w-12 text-muted-foreground/30" />
-                      </div>
-                    )}
+                  <div className="h-36 bg-muted relative overflow-hidden card-shine">
+                    <img
+                      src={t.bannerUrl || getSportImage(t.sport, "banner")}
+                      alt={t.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
                     <div className="absolute top-2 right-2">
                       <StatusBadge status={t.status as TournamentStatus} />
                     </div>

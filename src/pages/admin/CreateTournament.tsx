@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2, ArrowLeft, ArrowRight, Check, Copy, Image } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 
 const schema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(100),
@@ -136,7 +137,11 @@ const CreateTournament = () => {
   }
 
   return (
-    <div className="max-w-2xl mx-auto animate-fade-in">
+    <div className="max-w-2xl mx-auto">
+      <PageBreadcrumbs
+        className="mb-4"
+        items={[{ label: "Tournaments", href: "/admin/tournaments" }, { label: "Create" }]}
+      />
       <h1 className="text-2xl font-bold mb-6">Create Tournament</h1>
 
       {/* Step Indicator */}

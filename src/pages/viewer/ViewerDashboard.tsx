@@ -16,6 +16,7 @@ import SportBadge from "@/components/ui/SportBadge";
 import BracketView from "@/components/bracket/BracketView";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
 import { Shield, Users, Plus, Trash2, Save, Loader2, Lock, GitBranch, BarChart3, Calendar, Trophy } from "lucide-react";
+import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import type { Player } from "@/types";
@@ -121,7 +122,8 @@ const ViewerDashboard = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto space-y-6">
+      <PageBreadcrumbs items={[{ label: "My Team" }]} />
       {/* Welcome Banner */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="glass-card overflow-hidden">
