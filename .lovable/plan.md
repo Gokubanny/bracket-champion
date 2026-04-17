@@ -1,58 +1,93 @@
 
 
-# Visual Enhancement Plan — Public UI Polish
+# Breadcrumbs + Life + Real Sports Imagery
 
-All changes are visual-only. No API calls, routing, or socket logic will be modified.
+Three things: (1) breadcrumbs for wayfinding, (2) ambient motion/animation polish, (3) real-world sport photography woven throughout.
 
-## Files to Modify
+---
 
-### 1. `src/index.css` — New utility classes
-- Add `@keyframes pulse-glow` for the glowing status pill
-- Add `.glow-gold` utility for winner border glow
-- Add `.count-up` animation helper class
+## Part 1 — Real Sports Photography
 
-### 2. `src/components/ui/StatusBadge.tsx` — Glowing status pill
-- Add a pulsing dot indicator: green pulse for `registration`, blue for `active`, static grey for `completed`
-- Use CSS animation for the pulse effect
+Source high-quality, royalty-free real photos from **Unsplash** (not AI-generated) covering all 6 sports: football, basketball, tennis, volleyball, cricket, badminton. Use direct Unsplash CDN URLs (`https://images.unsplash.com/...`) with width/quality params for fast loading.
 
-### 3. `src/pages/admin/AllTournaments.tsx` — Tournament card upgrades
-- Add sport icon badge overlay on the banner image (bottom-left corner)
-- Replace the existing StatusBadge with the new glowing version
-- Add a `Progress` bar below the card content showing `teamCount / teamSlots`
-- Add hover lift + shadow: `hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10 transition-all`
+**Where photos go:**
+- **Home hero**: Full-bleed background collage — a stadium/crowd shot with dark gradient overlay so text stays readable
+- **Supported Sports section**: Replace plain icon tiles with sport photo cards (action shot per sport) with sport icon + name overlaid
+- **How It Works**: Each step gets a small thematic photo accent
+- **Sport Info Page (`/sports/:sport`)**: Hero banner becomes a real action shot of that sport
+- **Browse Tournaments empty state**: Atmospheric stadium photo behind the empty message
+- **Tournament cards without uploaded banner**: Fallback to a sport-specific Unsplash photo instead of placeholder
+- **Login/Register pages**: Split-screen with a sports photo side panel on desktop
 
-### 4. `src/pages/viewer/PublicBracketPage.tsx` — Major visual overhaul
-- **Cinematic banner header**: Full-width banner with `bg-gradient-to-t from-background via-background/60 to-transparent` overlay. Tournament name, sport badge, and status pill overlaid on the banner. Remove the separate banner + title sections.
-- **Countdown timer**: New inline component using `useEffect` + `setInterval` that counts down to `tournament.startDate` when status is `upcoming` or `registration`. Shows days/hours/minutes/seconds.
-- **Champion banner upgrade**: Gold gradient background, show winning team name (from bracket final match winner), trigger confetti on mount.
-- **Teams tab upgrade**: Add team color as `borderTop` accent. On hover, expand card to show player list inline (jersey numbers + positions). Use Framer Motion `AnimatePresence` + `layout` for smooth expand.
-- **Skeleton loaders**: Add proper skeletons in bracket, leaderboard, and teams tab content areas while their respective queries are loading.
-- **Empty states**: Use sport-specific icons from `SPORTS` config instead of generic Trophy.
+**Implementation**: Add `src/constants/sportImages.ts` mapping each sport key → curated array of Unsplash URLs (hero, action, tile, banner variants). Components pull from this map.
 
-### 5. `src/components/bracket/BracketView.tsx` — Bracket visual upgrade
-- **Match card styling**: Increase `MATCH_HEIGHT` to ~80px. Add rounded corners (`rx={10}`). Add team color circles (small badge) next to team names. Display score between the two teams (centered column).
-- **Winner gold glow**: Winner side gets a gold left border rect inside the match card.
-- **BYE nodes**: Lower opacity (`opacity={0.4}`), italic "BYE" label, dashed stroke.
-- **Column entrance animation**: Each round column (`ri`) fades and slides in from the left with staggered delay using Framer Motion `initial={{ opacity: 0, x: -30 }}`.
-- **Winner advance animation**: When `match.winnerId` changes, the match node gets a `layoutId` transition or a scale-pulse animation.
+---
 
-### 6. `src/components/leaderboard/LeaderboardTable.tsx` — Leaderboard polish
-- Medal icons already exist for rank 1/2/3 — keep them, ensure gold/silver/bronze colors are distinct.
-- Add a colored left border strip per row using `team.color` as inline `borderLeft` style.
-- Add a `CountUp` effect: wrap stat numbers in a component that animates from 0 to the value on first render using `requestAnimationFrame` or a simple `useEffect` tween.
+## Part 2 — Breadcrumb Navigation
 
-### 7. New component: `src/components/ui/CountUpNumber.tsx`
-- Small component that takes a `value: number` and animates from 0 to that value over ~800ms on mount. Uses `useEffect` with `requestAnimationFrame`.
+New `src/components/ui/PageBreadcrumbs.tsx` — built on existing shadcn `breadcrumb.tsx`, accepts `items: { label, href? }[]`, framer-motion fade-in, mobile-collapses with ellipsis.
 
-### 8. New component: `src/components/ui/CountdownTimer.tsx`
-- Takes a `targetDate: string`. Computes remaining time. Returns formatted `Xd Xh Xm Xs` display. Updates every second via `setInterval`. Shows "Started" if past.
+Dropped into:
+- `/admin/dashboard`, `/admin/tournaments`, `/admin/tournaments/create`, `/admin/tournaments/:id`
+- `/tournament/:inviteCode`, `/sports/:sport`, `/viewer/dashboard`
 
-## Technical Details
+Dynamic labels (tournament name, sport name) pulled from existing query data.
 
-- **No new dependencies** — all animations use existing Framer Motion + CSS
-- **Progress bar** reuses existing `src/components/ui/progress.tsx`
-- **CountUp** is a lightweight ~30-line component using `requestAnimationFrame`
-- **Countdown** is a ~40-line component using `setInterval` + `useState`
-- Team card hover expand uses Framer Motion `animate={{ height: "auto" }}` pattern
-- All changes scoped to visual rendering — no query keys, service calls, or socket handlers are touched
+---
+
+## Part 3 — Bringing the Site to Life
+
+### Ambient layer
+- New `src/components/ui/AmbientBackground.tsx` — fixed full-screen, 3 large blurred orbs (primary blue, sport-orange, sport-purple) drifting via `@keyframes drift` (20–30s loops), ~8% opacity. Subtle SVG noise overlay for film grain. Mounted once in `App.tsx`.
+
+### New keyframes in `src/index.css`
+- `drift` (orb movement), `shimmer` (button sweep), `gradient-shift` (text gradient cycle)
+- Utilities: `.animated-gradient-text`, `.btn-shimmer`, `.card-glow-hover`
+
+### Hero (`Index.tsx`)
+- Real stadium photo background with dark gradient overlay
+- Animated gradient on the word "Competitions"
+- Floating sport icons (low opacity) with varied `animate-float` delays
+- Subtle mouse-parallax tilt on the headline
+
+### Cards everywhere
+- Hover: gradient border glow tinted by the sport's accent color
+- Shine sweep across banner on hover
+- Bouncier spring entrance with stagger
+
+### Stats bar
+- Soft pulse glow when CountUp finishes
+- Tiny sparkline accent line under each stat
+
+### Navbar
+- Logo hover: gentle rotate + scale
+- Active route: animated underline (`.story-link` pattern)
+
+### Buttons (`button.tsx`)
+- Primary variant gets shimmer sweep on hover
+- `active:scale-95` press-down on all variants
+
+### Page transitions
+- `PublicLayout`, `AdminLayout`, `ViewerLayout` wrap `<Outlet />` in Framer Motion `AnimatePresence` keyed by `location.pathname` — fade + slight slide up
+
+---
+
+## Files
+
+**Created:**
+- `src/components/ui/PageBreadcrumbs.tsx`
+- `src/components/ui/AmbientBackground.tsx`
+- `src/constants/sportImages.ts` — Unsplash URL map per sport
+
+**Modified:**
+- `src/index.css`, `src/App.tsx`, `src/components/ui/button.tsx`
+- `src/components/layout/{PublicLayout,AdminLayout,ViewerLayout,Navbar}.tsx`
+- `src/pages/Index.tsx` (hero photo, floating icons, gradient text, sport photo tiles)
+- `src/pages/SportInfoPage.tsx` (real action-shot hero)
+- `src/pages/BrowseTournaments.tsx` (photo fallback for cards, atmospheric empty state)
+- `src/pages/auth/{LoginPage,RegisterPage}.tsx` (split-screen sports photo panel)
+- `src/pages/admin/{AdminDashboard,AllTournaments,CreateTournament,ManageTournament}.tsx` (breadcrumbs + photo fallbacks)
+- `src/pages/viewer/{PublicBracketPage,ViewerDashboard}.tsx` (breadcrumbs)
+
+No API, routing, or socket logic touched.
 
