@@ -14,6 +14,7 @@ import CountdownTimer from "@/components/ui/CountdownTimer";
 import BracketView from "@/components/bracket/BracketView";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
 import { Card, CardContent } from "@/components/ui/card";
+import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import { Trophy, Users, Shield, GitBranch, BarChart3 } from "lucide-react";
 import type { TournamentStatus, SportType } from "@/constants/sports";
 import type { Team } from "@/types";
@@ -128,6 +129,13 @@ const PublicBracketPage = () => {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 pb-8 space-y-6">
+        <PageBreadcrumbs
+          className="pt-4"
+          items={[
+            { label: "Tournaments", href: "/tournaments" },
+            { label: tournament.name },
+          ]}
+        />
         {/* Champion Banner */}
         <AnimatePresence>
           {(showChampion || tournament.status === "completed") && (

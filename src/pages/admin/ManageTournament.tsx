@@ -13,6 +13,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import BracketView from "@/components/bracket/BracketView";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
 import ScoreEntryModal from "@/components/match/ScoreEntryModal";
+import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import { Copy, Users, Shield, AlertTriangle, Trophy } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -122,7 +123,13 @@ const ManageTournament = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
+      <PageBreadcrumbs
+        items={[
+          { label: "Tournaments", href: "/admin/tournaments" },
+          { label: tournament.name },
+        ]}
+      />
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
         <div>
           <h1 className="text-2xl font-bold">{tournament.name}</h1>

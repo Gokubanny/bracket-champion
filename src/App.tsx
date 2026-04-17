@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AmbientBackground from "@/components/ui/AmbientBackground";
 import AdminLayout from "@/components/layout/AdminLayout";
 import ViewerLayout from "@/components/layout/ViewerLayout";
 import PublicLayout from "@/components/layout/PublicLayout";
@@ -30,6 +31,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <AmbientBackground />
         <BrowserRouter>
           <Routes>
             {/* Public routes */}

@@ -120,3 +120,124 @@
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
+
+/* === Ambient drifting orbs === */
+@keyframes drift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(8rem, 6rem) scale(1.1); }
+}
+@keyframes drift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-6rem, -8rem) scale(1.15); }
+}
+@keyframes drift3 {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-30%, -70%) scale(1.2); }
+}
+
+/* === Shimmer sweep === */
+@keyframes shimmer {
+  0% { transform: translateX(-100%) skewX(-12deg); }
+  100% { transform: translateX(250%) skewX(-12deg); }
+}
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.18), transparent);
+  transform: translateX(-100%) skewX(-12deg);
+  pointer-events: none;
+}
+.btn-shimmer:hover::after {
+  animation: shimmer 1s ease-out;
+}
+
+/* === Animated gradient text === */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.animated-gradient-text {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary)),
+    hsl(var(--sport-basketball)),
+    hsl(var(--sport-volleyball)),
+    hsl(var(--sport-tennis)),
+    hsl(var(--primary))
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-shift 8s ease-in-out infinite;
+}
+
+/* === Card glow on hover (uses --glow-color CSS var) === */
+.card-glow-hover {
+  position: relative;
+  transition: box-shadow 0.35s ease, transform 0.35s ease;
+}
+.card-glow-hover:hover {
+  box-shadow:
+    0 0 0 1px var(--glow-color, hsl(var(--primary))),
+    0 12px 40px -8px var(--glow-color, hsl(var(--primary) / 0.4));
+}
+
+/* === Card shine sweep on hover (banner overlay) === */
+@keyframes card-shine {
+  0% { transform: translateX(-120%) skewX(-20deg); }
+  100% { transform: translateX(220%) skewX(-20deg); }
+}
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+.card-shine::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 60%;
+  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.18), transparent);
+  transform: translateX(-120%) skewX(-20deg);
+  pointer-events: none;
+  z-index: 2;
+}
+.group:hover .card-shine::before {
+  animation: card-shine 0.9s ease-out;
+}
+
+/* === Story link animated underline === */
+.story-link {
+  position: relative;
+}
+.story-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 2px;
+  width: 100%;
+  background: hsl(var(--primary));
+  transform: scaleX(0);
+  transform-origin: bottom right;
+  transition: transform 0.3s ease;
+}
+.story-link:hover::after,
+.story-link[data-active="true"]::after {
+  transform: scaleX(1);
+  transform-origin: bottom left;
+}
+
+/* === Soft pulse glow when stat finishes counting === */
+@keyframes stat-pulse {
+  0%, 100% { text-shadow: 0 0 0 transparent; }
+  50% { text-shadow: 0 0 24px hsl(var(--primary) / 0.6); }
+}
+.stat-pulse {
+  animation: stat-pulse 1.6s ease-in-out;
+}

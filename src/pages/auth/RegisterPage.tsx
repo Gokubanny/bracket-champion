@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Trophy, Loader2, Eye, EyeOff } from "lucide-react";
+import { ATMOSPHERE_IMAGES } from "@/constants/sportImages";
 import { toast } from "sonner";
 
 const registerSchema = z.object({
@@ -64,7 +65,18 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-4">
+    <div className="min-h-[calc(100vh-8rem)] grid lg:grid-cols-2">
+      <div className="relative hidden lg:block overflow-hidden">
+        <img src={ATMOSPHERE_IMAGES.crowd} alt="Cheering crowd" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-background via-background/40 to-transparent" />
+        <div className="relative h-full flex flex-col justify-end p-10">
+          <h2 className="text-3xl font-bold drop-shadow mb-2">Run the Show</h2>
+          <p className="text-muted-foreground max-w-md">
+            Create unforgettable tournaments and lead student athletes to glory.
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center justify-center p-4">
       <Card className="w-full max-w-md glass-card">
         <CardHeader className="text-center space-y-2">
           <div className="mx-auto h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
@@ -145,6 +157,7 @@ const RegisterPage = () => {
           </p>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };

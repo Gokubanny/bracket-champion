@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SportBadge from "@/components/ui/SportBadge";
 import CountUpNumber from "@/components/ui/CountUpNumber";
+import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import { Trophy, Users, Calendar, Clock, PlusCircle, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
@@ -39,7 +40,8 @@ const AdminDashboard = () => {
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
+      <PageBreadcrumbs items={[{ label: "Dashboard" }]} />
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
