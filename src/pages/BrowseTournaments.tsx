@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { tournamentService } from "@/services/tournamentService";
 import { SPORTS, SPORT_OPTIONS } from "@/constants/sports";
 import type { SportType, TournamentStatus } from "@/constants/sports";
+import { getSportImage, ATMOSPHERE_IMAGES } from "@/constants/sportImages";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,8 @@ import { Progress } from "@/components/ui/progress";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SportBadge from "@/components/ui/SportBadge";
 import EmptyState from "@/components/ui/EmptyState";
-import { Trophy, Search, Users, Calendar } from "lucide-react";
+import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
+import { Search, Users, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 
@@ -33,7 +35,8 @@ const BrowseTournaments = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 animate-fade-in">
+    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+      <PageBreadcrumbs items={[{ label: "Browse Tournaments" }]} />
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Browse Tournaments</h1>
@@ -95,25 +98,26 @@ const BrowseTournaments = () => {
                 key={t.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
+                transition={{ delay: i * 0.03, type: "spring", stiffness: 220, damping: 22 }}
               >
                 <Card
-                  className="glass-card cursor-pointer hover:border-primary/50 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group overflow-hidden"
+                  className="glass-card cursor-pointer hover:-translate-y-1 transition-all duration-300 group overflow-hidden card-glow-hover"
+                  style={{ ["--glow-color" as string]: `hsl(var(${sportConfig?.colorVar ?? "--primary"}) / 0.45)` }}
                   onClick={() => navigate(`/tournament/${t.inviteCode}`)}
                 >
-                  <div className="h-36 bg-muted relative overflow-hidden">
-                    {t.bannerUrl ? (
-                      <img src={t.bannerUrl} alt={t.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    ) : (
-                      <div className="h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
-                        <Trophy className="h-12 w-12 text-muted-foreground/30" />
-                      </div>
-                    )}
-                    <div className="absolute top-2 right-2">
+                  <div className="h-36 bg-muted relative overflow-hidden card-shine">
+                    <img
+                      src={t.bannerUrl || getSportImage(t.sport, "banner")}
+                      alt={t.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
+                    <div className="absolute top-2 right-2 z-10">
                       <StatusBadge status={t.status as TournamentStatus} />
                     </div>
                     {SportIcon && (
-                      <div className="absolute bottom-2 left-2 h-8 w-8 rounded-full flex items-center justify-center backdrop-blur-sm border border-border/30" style={{ backgroundColor: `hsl(var(${sportConfig.colorVar}) / 0.2)` }}>
+                      <div className="absolute bottom-2 left-2 h-8 w-8 rounded-full flex items-center justify-center backdrop-blur-md border border-border/30 z-10" style={{ backgroundColor: `hsl(var(${sportConfig.colorVar}) / 0.35)` }}>
                         <SportIcon className="h-4 w-4" style={{ color: `hsl(var(${sportConfig.colorVar}))` }} />
                       </div>
                     )}
@@ -145,11 +149,17 @@ const BrowseTournaments = () => {
           })}
         </div>
       ) : (
-        <EmptyState
-          icon={<Search className="h-8 w-8" />}
-          title="No tournaments found"
-          description="Try adjusting your filters or search term."
-        />
+        <div className="relative overflow-hidden rounded-xl border border-border">
+          <img src={ATMOSPHERE_IMAGES.stadium} alt="" className="absolute inset-0 w-full h-full object-cover opacity-25" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background to-background/40" />
+          <div className="relative">
+            <EmptyState
+              icon={<Search className="h-8 w-8" />}
+              title="No tournaments found"
+              description="Try adjusting your filters or search term."
+            />
+          </div>
+        </div>
       )}
     </div>
   );
