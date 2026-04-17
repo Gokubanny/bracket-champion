@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Trophy, LogOut, Menu, X, Search, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { useState } from "react";
 const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -22,18 +23,24 @@ const Navbar = () => {
     navigate("/login");
   };
 
+  const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
+
   return (
     <nav className="h-14 border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-50">
       <div className="h-full max-w-7xl mx-auto px-4 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link to="/" className="flex items-center gap-2 text-foreground hover:text-primary transition-colors">
-            <Trophy className="h-6 w-6 text-primary" />
+          <Link to="/" className="flex items-center gap-2 text-foreground hover:text-primary transition-all duration-300 group">
+            <Trophy className="h-6 w-6 text-primary transition-transform duration-500 group-hover:rotate-[18deg] group-hover:scale-110" />
             <span className="font-bold text-lg hidden sm:inline">SportsBracket</span>
           </Link>
 
           {/* Desktop nav links */}
           <div className="hidden md:flex items-center gap-1">
-            <Link to="/tournaments" className="text-sm text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition-colors flex items-center gap-1.5">
+            <Link
+              to="/tournaments"
+              data-active={isActive("/tournaments")}
+              className="story-link text-sm text-muted-foreground hover:text-foreground px-3 py-2 transition-colors flex items-center gap-1.5"
+            >
               <Search className="h-3.5 w-3.5" />
               Browse Tournaments
             </Link>
