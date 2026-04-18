@@ -20,11 +20,13 @@ import type { TournamentStatus, SportType } from "@/constants/sports";
 import type { Team } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
+import { useSound } from "@/context/SoundContext";
 
 const PublicBracketPage = () => {
   const { inviteCode } = useParams<{ inviteCode: string }>();
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [showChampion, setShowChampion] = useState(false);
+  const { play } = useSound();
 
   const { data: tournament, isLoading } = useQuery({
     queryKey: ["tournament-invite", inviteCode],
@@ -58,12 +60,15 @@ const PublicBracketPage = () => {
     socketService.joinTournament(tournament.id);
 
     const unsub1 = socketService.onMatchResultConfirmed(() => {
+      play("whistle", { volume: 0.4 });
+      setTimeout(() => play("cheer", { volume: 0.3 }), 250);
       refetchBracket();
       refetchLeaderboard();
     });
 
     const unsub2 = socketService.onTournamentCompleted(() => {
       setShowChampion(true);
+      play("champion", { volume: 0.5 });
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     });
 
@@ -72,7 +77,7 @@ const PublicBracketPage = () => {
       unsub2();
       socketService.leaveTournament(tournament.id);
     };
-  }, [tournament?.id, refetchBracket, refetchLeaderboard]);
+  }, [tournament?.id, refetchBracket, refetchLeaderboard, play]);
 
   if (isLoading) {
     return (
