@@ -3,6 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Trophy, LogOut, Menu, X, Search, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import SoundToggle from "@/components/ui/SoundToggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,7 +49,8 @@ const Navbar = () => {
         </div>
 
         {/* Desktop right */}
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-2">
+          <SoundToggle />
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -81,9 +83,12 @@ const Navbar = () => {
         </div>
 
         {/* Mobile toggle */}
-        <button className="md:hidden text-foreground" onClick={() => setMobileOpen(!mobileOpen)}>
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="md:hidden flex items-center gap-1">
+          <SoundToggle />
+          <button className="text-foreground p-2" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Open menu">
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}

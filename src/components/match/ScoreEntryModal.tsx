@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Loader2, Trophy } from "lucide-react";
 import { toast } from "sonner";
+import { useSound } from "@/context/SoundContext";
 
 interface ScoreEntryModalProps {
   match: Match;
@@ -20,6 +21,7 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({ match, open, onClose,
   const [scoreA, setScoreA] = useState<string>(match.scoreA?.toString() ?? "");
   const [scoreB, setScoreB] = useState<string>(match.scoreB?.toString() ?? "");
   const isEdit = match.status === "completed";
+  const { play } = useSound();
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -31,6 +33,8 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({ match, open, onClose,
     },
     onSuccess: () => {
       toast.success(isEdit ? "Result updated!" : "Result confirmed!");
+      play("whistle", { volume: 0.4 });
+      setTimeout(() => play("cheer", { volume: 0.3 }), 250);
       onSuccess();
     },
     onError: () => toast.error("Failed to submit score"),

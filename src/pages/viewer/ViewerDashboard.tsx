@@ -19,6 +19,7 @@ import { Shield, Users, Plus, Trash2, Save, Loader2, Lock, GitBranch, BarChart3,
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { useSound } from "@/context/SoundContext";
 import type { Player } from "@/types";
 import type { SportType, TournamentStatus } from "@/constants/sports";
 
@@ -26,6 +27,7 @@ const ViewerDashboard = () => {
   const { user } = useAuth();
   const tournamentId = "current";
   const queryClient = useQueryClient();
+  const { play } = useSound();
 
   const { data: team, isLoading } = useQuery({
     queryKey: ["my-team", tournamentId],
@@ -60,9 +62,14 @@ const ViewerDashboard = () => {
     if (!team?.tournamentId) return;
     socketService.connect();
     socketService.joinTournament(team.tournamentId);
-    const unsub1 = socketService.onMatchResultConfirmed(() => { refetchBracket(); refetchLeaderboard(); });
+    const unsub1 = socketService.onMatchResultConfirmed(() => {
+      play("whistle", { volume: 0.35 });
+      setTimeout(() => play("cheer", { volume: 0.25 }), 250);
+      refetchBracket();
+      refetchLeaderboard();
+    });
     return () => { unsub1(); socketService.leaveTournament(team.tournamentId); };
-  }, [team?.tournamentId, refetchBracket, refetchLeaderboard]);
+  }, [team?.tournamentId, refetchBracket, refetchLeaderboard, play]);
 
   const startEditing = () => {
     if (team) {
