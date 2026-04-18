@@ -15,6 +15,7 @@ import CountUpNumber from "@/components/ui/CountUpNumber";
 import { Trophy, ArrowRight, Users, Calendar, GitBranch, Crown, Clipboard, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
+import HypeScene3D from "@/components/hero/HypeScene3D";
 
 const Index = () => {
   const { user } = useAuth();
@@ -59,16 +60,19 @@ const Index = () => {
     <div>
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        {/* Real stadium photo background */}
+        {/* Atmospheric photo base for color depth */}
         <div className="absolute inset-0">
           <img
             src={ATMOSPHERE_IMAGES.stadium}
             alt=""
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover opacity-40"
             loading="eager"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/85 via-background/70 to-background" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background/60 via-transparent to-background/40" />
+          {/* 3D hype reel — looping, lightweight, procedural */}
+          <HypeScene3D className="absolute inset-0 w-full h-full" />
+          {/* Readability overlays */}
+          <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/55 to-background pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background/50 via-transparent to-background/40 pointer-events-none" />
         </div>
 
         {/* Floating sport icons */}
