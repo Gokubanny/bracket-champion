@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
 
 let socket: Socket | null = null;
 
@@ -23,11 +23,11 @@ export const socketService = {
   },
 
   joinTournament: (tournamentId: string) => {
-    socket?.emit("tournament:join", tournamentId);
+    socket?.emit("join:tournament", tournamentId);
   },
 
   leaveTournament: (tournamentId: string) => {
-    socket?.emit("tournament:leave", tournamentId);
+    socket?.emit("leave:tournament", tournamentId);
   },
 
   onMatchResultConfirmed: (callback: (data: unknown) => void) => {
