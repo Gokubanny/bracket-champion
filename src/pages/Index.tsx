@@ -5,6 +5,7 @@ import { tournamentService } from "@/services/tournamentService";
 import { SPORTS, SPORT_OPTIONS } from "@/constants/sports";
 import type { SportType, TournamentStatus } from "@/constants/sports";
 import { SPORT_IMAGES, ATMOSPHERE_IMAGES, getSportImage } from "@/constants/sportImages";
+import { DUMMY_TOURNAMENTS } from "@/constants/dummyTournaments";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,10 +22,13 @@ const Index = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const { data: featured, isLoading: featuredLoading } = useQuery({
+  const { data: featuredData, isLoading: featuredLoading } = useQuery({
     queryKey: ["featured-tournaments"],
     queryFn: tournamentService.getFeatured,
+    retry: false,
   });
+  // Fallback to dummy data so the page never feels empty in dev/demo mode
+  const featured = featuredData && featuredData.length > 0 ? featuredData : DUMMY_TOURNAMENTS;
 
   const { data: stats } = useQuery({
     queryKey: ["platform-stats"],

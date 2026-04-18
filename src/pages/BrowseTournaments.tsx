@@ -5,6 +5,7 @@ import { tournamentService } from "@/services/tournamentService";
 import { SPORTS, SPORT_OPTIONS } from "@/constants/sports";
 import type { SportType, TournamentStatus } from "@/constants/sports";
 import { getSportImage, ATMOSPHERE_IMAGES } from "@/constants/sportImages";
+import { DUMMY_TOURNAMENTS } from "@/constants/dummyTournaments";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,14 +26,24 @@ const BrowseTournaments = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sportFilter, setSportFilter] = useState<string>("all");
 
-  const { data: tournaments, isLoading } = useQuery({
+  const { data: apiTournaments, isLoading } = useQuery({
     queryKey: ["public-tournaments", { search, status: statusFilter, sport: sportFilter }],
     queryFn: () => tournamentService.getAll({
       search: search || undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
       sport: sportFilter !== "all" ? sportFilter : undefined,
     }),
+    retry: false,
   });
+
+  // Frontend dummy fallback — applies the same filters so the UX feels real
+  const fallback = DUMMY_TOURNAMENTS.filter((t) => {
+    if (statusFilter !== "all" && t.status !== statusFilter) return false;
+    if (sportFilter !== "all" && t.sport !== sportFilter) return false;
+    if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+  const tournaments = apiTournaments && apiTournaments.length > 0 ? apiTournaments : fallback;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
