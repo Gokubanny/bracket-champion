@@ -24,8 +24,26 @@ initSocket(server);
 // Connect to MongoDB
 connectDB();
 
-// Middleware
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+// Middleware - Fix CORS
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:8080",
+  "https://arenax-sdlf.onrender.com",
+  process.env.CLIENT_URL,
+].filter(Boolean); // Remove undefined values
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed"));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
