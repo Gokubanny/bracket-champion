@@ -30,7 +30,7 @@ const allowedOrigins = [
   "http://localhost:8080",
   "https://arenax-sdlf.onrender.com",
   process.env.CLIENT_URL,
-].filter(Boolean); // Remove undefined values
+].filter(Boolean);
 
 app.use(
   cors({
