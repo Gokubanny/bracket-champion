@@ -11,7 +11,7 @@ interface SoundContextValue {
 
 const SoundContext = createContext<SoundContextValue | undefined>(undefined);
 
-const STORAGE_KEY = "sportsbracket:muted";
+const STORAGE_KEY = "ArenaX:muted";
 
 /**
  * Lightweight WebAudio-based sound effects — no external assets.

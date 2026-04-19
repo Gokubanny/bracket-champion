@@ -32,7 +32,7 @@ const Navbar = () => {
         <div className="flex items-center gap-6">
           <Link to="/" className="flex items-center gap-2 text-foreground hover:text-primary transition-all duration-300 group">
             <Trophy className="h-6 w-6 text-primary transition-transform duration-500 group-hover:rotate-[18deg] group-hover:scale-110" />
-            <span className="font-bold text-lg hidden sm:inline">SportsBracket</span>
+            <span className="font-bold text-lg hidden sm:inline">ArenaX</span>
           </Link>
 
           {/* Desktop nav links */}

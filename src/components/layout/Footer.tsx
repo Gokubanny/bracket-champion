@@ -9,7 +9,7 @@ const Footer = () => {
           <div className="md:col-span-2">
             <Link to="/" className="flex items-center gap-2 mb-3">
               <Trophy className="h-6 w-6 text-primary" />
-              <span className="font-bold text-lg">SportsBracket</span>
+              <span className="font-bold text-lg">ArenaX</span>
             </Link>
             <p className="text-sm text-muted-foreground max-w-sm">
               The ultimate platform for organizing and managing student sports competitions. Create tournaments, manage teams, and track results in real-time.
@@ -39,7 +39,7 @@ const Footer = () => {
         </div>
 
         <div className="border-t border-border mt-8 pt-6 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} SportsBracket. Built for student athletes.
+          © {new Date().getFullYear()} ArenaX. Built for student athletes.
         </div>
       </div>
     </footer>
