@@ -1,4 +1,4 @@
-const { Server } = require("socket.io/dist");
+const { Server } = require("socket.io");
 
 let io;
 
