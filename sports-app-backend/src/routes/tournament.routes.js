@@ -9,12 +9,12 @@ const {
 const { protect, restrictTo } = require("../middleware/auth.middleware");
 const upload = require("../middleware/upload.middleware");
 
-// Public
+// Public - Specific routes BEFORE /:id
 router.get("/", getTournaments);
+router.get("/dashboard/stats", protect, getDashboardStats);
+router.get("/dashboard/activity", protect, getDashboardActivity);
 router.get("/invite/:code", getTournamentByInviteCode);
 router.get("/:id", getTournament);
-router.get('/dashboard/stats', getDashboardStats);
-router.get('/dashboard/activity', getDashboardActivity);
 
 // Admin only
 router.post("/", protect, restrictTo("admin"), upload.single("banner"), createTournament);
