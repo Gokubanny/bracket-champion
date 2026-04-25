@@ -7,7 +7,6 @@ let currentApiUrl = PRIMARY_URL;
 let currentSocketUrl = PRIMARY_SOCKET;
 let usingFallback = false;
 
-// Test which URL is working
 const testConnection = async (url: string) => {
   try {
     const response = await axios.get(`${url}/health`, { 
@@ -21,26 +20,18 @@ const testConnection = async (url: string) => {
   }
 };
 
-// Auto-detect which URL to use on startup
 const initializeApi = async () => {
-  console.log("🔗 Testing API connections on startup...");
+  console.log("🔗 Testing API connection...");
   console.log("  Primary:", PRIMARY_URL);
 
   const primaryWorks = await testConnection(PRIMARY_URL);
-
   if (primaryWorks) {
-    currentApiUrl = PRIMARY_URL;
-    currentSocketUrl = PRIMARY_SOCKET;
-    usingFallback = false;
     console.log("✅ Using PRIMARY API:", currentApiUrl);
   } else {
     console.error("❌ Primary API is down!");
-    currentApiUrl = PRIMARY_URL;
-    currentSocketUrl = PRIMARY_SOCKET;
   }
 };
 
-// Initialize on module load
 initializeApi();
 
 const api = axios.create({
@@ -52,7 +43,6 @@ const api = axios.create({
   timeout: 8000,
 });
 
-// Request interceptor
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
@@ -62,21 +52,13 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Handle 401 - redirect to login ONLY if trying to access protected routes
     if (error.response?.status === 401) {
-      const token = localStorage.getItem("token");
-      
-      // Only redirect if user had a token (was logged in before)
-      if (token) {
-        localStorage.removeItem("token");
-        window.location.href = "/login";
-      }
+      localStorage.removeItem("token");
+      window.location.href = "/login";
     }
-
     console.error("❌ API Error:", error.response?.data || error.message);
     return Promise.reject(error);
   }
