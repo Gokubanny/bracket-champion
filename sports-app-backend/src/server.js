@@ -24,10 +24,8 @@ initSocket(server);
 // Connect to MongoDB
 connectDB();
 
-// Middleware - Fix CORS
+// Middleware - CORS
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:8080",
   "https://arenax-sdlf.onrender.com",
   process.env.CLIENT_URL,
 ].filter(Boolean);
