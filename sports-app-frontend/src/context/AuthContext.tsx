@@ -17,24 +17,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    authService.getMe()
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    const initAuth = async () => {
+      try {
+        const userData = await authService.getMe();
+        setUser(userData);
+      } catch (error) {
+        console.warn("Auth initialization failed, user not logged in");
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { user } = await authService.login(email, password);
-    setUser(user);
+    try {
+      const { user, token } = await authService.login(email, password);
+      localStorage.setItem("token", token);
+      setUser(user);
+    } catch (error) {
+      console.error("Login failed:", error);
+      throw error;
+    }
   }, []);
 
   const register = useCallback(async (fullName: string, email: string, password: string) => {
-    await authService.register(fullName, email, password);
+    try {
+      const { user, token } = await authService.register(fullName, email, password);
+      localStorage.setItem("token", token);
+      setUser(user);
+    } catch (error) {
+      console.error("Registration failed:", error);
+      throw error;
+    }
   }, []);
 
   const logout = useCallback(async () => {
-    await authService.logout();
-    setUser(null);
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.warn("Logout API call failed, clearing local data anyway");
+    } finally {
+      localStorage.removeItem("token");
+      setUser(null);
+    }
   }, []);
 
   return (

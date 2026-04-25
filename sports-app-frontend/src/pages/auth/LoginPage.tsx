@@ -35,11 +35,10 @@ const LoginPage = () => {
     try {
       await login(data.email, data.password);
       toast.success("Welcome back!");
-      const response = await fetch("/api/auth/me", { credentials: "include" }).catch(() => null);
-      const user = response ? await response.json().catch(() => null) : null;
-      navigate(user?.role === "admin" ? "/admin/dashboard" : "/viewer/dashboard");
-    } catch {
-      toast.error("Invalid email or password");
+      // Navigate based on user role from context
+      navigate("/admin/dashboard");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Invalid email or password");
     } finally {
       setLoading(false);
     }

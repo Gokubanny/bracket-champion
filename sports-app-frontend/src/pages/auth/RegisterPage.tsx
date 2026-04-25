@@ -55,10 +55,10 @@ const RegisterPage = () => {
     setLoading(true);
     try {
       await registerUser(data.fullName, data.email, data.password);
-      toast.success("Account created! Please sign in.");
-      navigate("/login");
-    } catch {
-      toast.error("Registration failed. Please try again.");
+      toast.success("Account created! Redirecting...");
+      navigate("/admin/dashboard");
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }

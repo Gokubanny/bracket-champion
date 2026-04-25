@@ -166,8 +166,38 @@ const cancelTournament = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Tournament cancelled." });
 });
 
+// Get dashboard stats
+const getDashboardStats = async (req, res) => {
+  try {
+    // Return tournament statistics
+    res.json({
+      totalTournaments: 0,
+      activeTournaments: 0,
+      completedMatches: 0,
+      // Add your actual stats
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get dashboard activity
+const getDashboardActivity = async (req, res) => {
+  try {
+    // Return recent tournament activity
+    res.json({
+      recentMatches: [],
+      recentTournaments: [],
+      // Add your actual activity data
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createTournament, getTournaments, getTournament,
   getTournamentByInviteCode, updateTournament,
   generateTournamentBracket, cancelTournament,
+  getDashboardStats, getDashboardActivity
 };

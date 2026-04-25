@@ -4,6 +4,7 @@ const {
   createTournament, getTournaments, getTournament,
   getTournamentByInviteCode, updateTournament,
   generateTournamentBracket, cancelTournament,
+  getDashboardStats, getDashboardActivity,
 } = require("../controllers/tournament.controller");
 const { protect, restrictTo } = require("../middleware/auth.middleware");
 const upload = require("../middleware/upload.middleware");
@@ -12,6 +13,8 @@ const upload = require("../middleware/upload.middleware");
 router.get("/", getTournaments);
 router.get("/invite/:code", getTournamentByInviteCode);
 router.get("/:id", getTournament);
+router.get('/dashboard/stats', getDashboardStats);
+router.get('/dashboard/activity', getDashboardActivity);
 
 // Admin only
 router.post("/", protect, restrictTo("admin"), upload.single("banner"), createTournament);
