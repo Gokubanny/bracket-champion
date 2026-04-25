@@ -49,6 +49,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
+// Root route
+app.get("/", (req, res) => {
+  res.json({ 
+    message: "Bracket Champion API is running", 
+    version: "1.0.0",
+    status: "active"
+  });
+});
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/tournaments", tournamentRoutes);
