@@ -66,10 +66,15 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Handle 401 - redirect to login
+    // Handle 401 - redirect to login ONLY if trying to access protected routes
     if (error.response?.status === 401) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
+      const token = localStorage.getItem("token");
+      
+      // Only redirect if user had a token (was logged in before)
+      if (token) {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+      }
     }
 
     console.error("❌ API Error:", error.response?.data || error.message);
