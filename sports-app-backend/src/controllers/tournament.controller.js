@@ -33,9 +33,11 @@ const getTournaments = asyncHandler(async (req, res) => {
   const { status, sport, search } = req.query;
   const filter = {};
 
-  if (req.user?.role === "admin") {
+  // If user is authenticated and is admin, show only their tournaments
+  if (req.user && req.user.role === "admin") {
     filter.createdBy = req.user._id;
   } else {
+    // Otherwise show only public tournaments
     filter.visibility = "public";
   }
 
@@ -43,8 +45,17 @@ const getTournaments = asyncHandler(async (req, res) => {
   if (sport) filter.sport = sport;
   if (search) filter.name = { $regex: search, $options: "i" };
 
-  const tournaments = await Tournament.find(filter).sort({ createdAt: -1 });
-  res.json({ success: true, data: { tournaments } });
+  const tournaments = await Tournament.find(filter)
+    .populate("createdBy", "name email")
+    .sort({ createdAt: -1 });
+
+  res.json({ 
+    success: true, 
+    data: { 
+      tournaments,
+      count: tournaments.length 
+    } 
+  });
 });
 
 // @desc    Get single tournament by ID
@@ -104,13 +115,9 @@ const generateTournamentBracket = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "At least 2 approved teams are required." });
   }
 
-  // Generate bracket structure
   const { matches } = generateBracket(approvedTeams, tournament._id);
-
-  // Save all matches
   const savedMatches = await Match.insertMany(matches);
 
-  // Link nextMatchId for winner advancement
   const linkUpdates = linkNextMatches(savedMatches);
   const bulkOps = linkUpdates.map(({ matchId, nextMatchId, slot }) => ({
     updateOne: {
@@ -119,7 +126,6 @@ const generateTournamentBracket = asyncHandler(async (req, res) => {
     },
   }));
 
-  // Also handle BYE auto-advancement: push BYE winners into next match
   for (const update of linkUpdates) {
     const match = savedMatches.find((m) => m._id.toString() === update.matchId.toString());
     if (match?.isBye && match.winnerId) {
@@ -138,13 +144,10 @@ const generateTournamentBracket = asyncHandler(async (req, res) => {
 
   if (bulkOps.length > 0) await Match.bulkWrite(bulkOps);
 
-  // Update tournament status to active
   tournament.status = "active";
   await tournament.save();
 
   const finalMatches = await Match.find({ tournamentId: tournament._id }).sort({ round: 1, matchNumber: 1 });
-
-  // Notify all viewers
   emitToTournament(tournament._id.toString(), "tournament:started", { tournamentId: tournament._id });
 
   res.json({ success: true, message: "Bracket generated. Tournament is now active.", data: { matches: finalMatches } });
@@ -167,33 +170,53 @@ const cancelTournament = asyncHandler(async (req, res) => {
 });
 
 // Get dashboard stats
-const getDashboardStats = async (req, res) => {
+const getDashboardStats = asyncHandler(async (req, res) => {
   try {
-    // Return tournament statistics
+    const userId = req.user?._id;
+    
+    const totalTournaments = await Tournament.countDocuments({ createdBy: userId });
+    const activeTournaments = await Tournament.countDocuments({ createdBy: userId, status: "active" });
+    const completedTournaments = await Tournament.countDocuments({ createdBy: userId, status: "completed" });
+    const completedMatches = await Match.countDocuments({ createdBy: userId, status: "completed" });
+
     res.json({
-      totalTournaments: 0,
-      activeTournaments: 0,
-      completedMatches: 0,
-      // Add your actual stats
+      success: true,
+      data: {
+        totalTournaments,
+        activeTournaments,
+        completedTournaments,
+        completedMatches,
+      },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
-};
+});
 
 // Get dashboard activity
-const getDashboardActivity = async (req, res) => {
+const getDashboardActivity = asyncHandler(async (req, res) => {
   try {
-    // Return recent tournament activity
+    const userId = req.user?._id;
+    
+    const recentTournaments = await Tournament.find({ createdBy: userId })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    const recentMatches = await Match.find()
+      .sort({ createdAt: -1 })
+      .limit(5);
+
     res.json({
-      recentMatches: [],
-      recentTournaments: [],
-      // Add your actual activity data
+      success: true,
+      data: {
+        recentMatches,
+        recentTournaments,
+      },
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
-};
+});
 
 module.exports = {
   createTournament, getTournaments, getTournament,
