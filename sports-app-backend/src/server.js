@@ -27,6 +27,7 @@ connectDB();
 // Middleware - CORS
 const allowedOrigins = [
   "https://arenax-sdlf.onrender.com",
+  "http://localhost:8080",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 

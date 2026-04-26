@@ -85,7 +85,7 @@ const JoinTournament = () => {
 
   const registerMutation = useMutation({
     mutationFn: (data: FormData) =>
-      teamService.registerTeam(tournament!.id, {
+      teamService.registerTeam(inviteCode!, {
         teamName: data.teamName,
         color: data.color,
         logo: logo || undefined,
