@@ -1,6 +1,6 @@
 /**
  * ArenaX Seed Script
- * Creates 1 admin account + 5 tournaments with different sports
+ * Creates 1 admin account + 12 tournaments with different sports
  * Run: node seed-demo.js
  */
 
@@ -20,56 +20,132 @@ const ADMIN = {
   role: "admin",
 };
 
+const daysFromNow = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d;
+};
+
 const TOURNAMENTS = [
   {
-    name: "UNIPORT Football Cup 2026",
+    name: "Spring Football Championship",
     sport: "Football",
-    description: "The annual inter-departmental football championship. Top 8 departments compete for the golden trophy.",
-    teamSlots: 8,
-    startDate: new Date("2026-06-01"),
-    registrationDeadline: new Date("2026-05-20"),
+    description: "The biggest inter-college football tournament of the spring season featuring 16 elite squads.",
+    teamSlots: 16,
+    startDate: daysFromNow(7),
+    registrationDeadline: daysFromNow(3),
     estimatedMatchDuration: "90 minutes",
     visibility: "public",
   },
   {
-    name: "Faculty Basketball League",
+    name: "Campus Basketball Showdown",
     sport: "Basketball",
-    description: "Fast-paced 5v5 basketball tournament across all faculties. Only the best advance to the finals.",
+    description: "Fast-paced 5v5 hardcourt action — eight teams battling for the campus crown.",
     teamSlots: 8,
-    startDate: new Date("2026-06-15"),
-    registrationDeadline: new Date("2026-06-05"),
-    estimatedMatchDuration: "45 minutes",
-    visibility: "public",
-  },
-  {
-    name: "Campus Volleyball Championship",
-    sport: "Volleyball",
-    description: "Mixed-level volleyball competition open to all departments. Register your team and compete for glory.",
-    teamSlots: 8,
-    startDate: new Date("2026-07-01"),
-    registrationDeadline: new Date("2026-06-20"),
+    startDate: daysFromNow(-2),
+    registrationDeadline: daysFromNow(-5),
     estimatedMatchDuration: "60 minutes",
     visibility: "public",
   },
   {
-    name: "Table Tennis Grand Prix",
-    sport: "Table Tennis",
-    description: "Singles and doubles table tennis tournament. Fast, competitive and open to all skill levels.",
+    name: "University Tennis Open",
+    sport: "Tennis",
+    description: "Singles knockout bracket open to all enrolled students. Best-of-three sets format.",
     teamSlots: 16,
-    startDate: new Date("2026-07-10"),
-    registrationDeadline: new Date("2026-06-30"),
-    estimatedMatchDuration: "30 minutes",
+    startDate: daysFromNow(14),
+    registrationDeadline: daysFromNow(10),
+    estimatedMatchDuration: "75 minutes",
     visibility: "public",
   },
   {
-    name: "Badminton Invitational 2026",
-    sport: "Badminton",
-    description: "Private invitational badminton tournament. By invite only for top-ranked campus players.",
+    name: "Volleyball Beach Classic",
+    sport: "Volleyball",
+    description: "6v6 indoor volleyball tournament — all divisions welcome. Sets-based scoring.",
     teamSlots: 8,
-    startDate: new Date("2026-08-01"),
-    registrationDeadline: new Date("2026-07-20"),
+    startDate: daysFromNow(21),
+    registrationDeadline: daysFromNow(14),
+    estimatedMatchDuration: "60 minutes",
+    visibility: "public",
+  },
+  {
+    name: "Inter-Hall Cricket League",
+    sport: "Cricket",
+    description: "T20-format cricket league between residence halls. Crown your hall champion.",
+    teamSlots: 8,
+    startDate: daysFromNow(-30),
+    registrationDeadline: daysFromNow(-35),
+    estimatedMatchDuration: "180 minutes",
+    visibility: "public",
+  },
+  {
+    name: "Badminton Doubles Cup",
+    sport: "Badminton",
+    description: "Mixed doubles knockout — fast rallies, big upsets. Sign up with a partner.",
+    teamSlots: 16,
+    startDate: daysFromNow(10),
+    registrationDeadline: daysFromNow(5),
     estimatedMatchDuration: "45 minutes",
-    visibility: "private",
+    visibility: "public",
+  },
+  {
+    name: "Winter Football League",
+    sport: "Football",
+    description: "Cold season championship — indoor football 7v7 format with high-speed action.",
+    teamSlots: 16,
+    startDate: daysFromNow(35),
+    registrationDeadline: daysFromNow(28),
+    estimatedMatchDuration: "75 minutes",
+    visibility: "public",
+  },
+  {
+    name: "Basketball 3v3 Street Tournament",
+    sport: "Basketball",
+    description: "Fast-paced street ball tournament — three-on-three teams compete for glory.",
+    teamSlots: 16,
+    startDate: daysFromNow(42),
+    registrationDeadline: daysFromNow(35),
+    estimatedMatchDuration: "45 minutes",
+    visibility: "public",
+  },
+  {
+    name: "Tennis Doubles Championship",
+    sport: "Tennis",
+    description: "Doubles format tennis tournament — team up and dominate the court.",
+    teamSlots: 16,
+    startDate: daysFromNow(20),
+    registrationDeadline: daysFromNow(15),
+    estimatedMatchDuration: "90 minutes",
+    visibility: "public",
+  },
+  {
+    name: "Summer Volleyball Pro Cup",
+    sport: "Volleyball",
+    description: "Elite-level 6v6 volleyball championship with professional-grade courts.",
+    teamSlots: 16,
+    startDate: daysFromNow(56),
+    registrationDeadline: daysFromNow(49),
+    estimatedMatchDuration: "75 minutes",
+    visibility: "public",
+  },
+  {
+    name: "Campus Cricket One-Day Cup",
+    sport: "Cricket",
+    description: "50-over cricket format tournament featuring the best campus teams.",
+    teamSlots: 8,
+    startDate: daysFromNow(18),
+    registrationDeadline: daysFromNow(12),
+    estimatedMatchDuration: "240 minutes",
+    visibility: "public",
+  },
+  {
+    name: "Badminton Singles Knockout",
+    sport: "Badminton",
+    description: "Individual singles knockout championship — showcase your solo skills on the court.",
+    teamSlots: 16,
+    startDate: daysFromNow(28),
+    registrationDeadline: daysFromNow(21),
+    estimatedMatchDuration: "40 minutes",
+    visibility: "public",
   },
 ];
 
@@ -100,6 +176,7 @@ const seed = async () => {
     // ── Tournaments ────────────────────────────────────────────
     console.log("🏆 Creating tournaments...\n");
 
+    let createdCount = 0;
     for (const t of TOURNAMENTS) {
       const existing = await Tournament.findOne({ name: t.name });
       if (existing) {
@@ -112,9 +189,11 @@ const seed = async () => {
         createdBy: admin._id,
       });
 
+      createdCount++;
       console.log(`✅ ${tournament.name}`);
       console.log(`   Sport      : ${tournament.sport}`);
       console.log(`   Slots      : ${tournament.teamSlots}`);
+      console.log(`   Start Date : ${tournament.startDate.toDateString()}`);
       console.log(`   Invite Code: ${tournament.inviteCode}`);
       console.log(`   Status     : ${tournament.status}`);
       console.log(`   Visibility : ${tournament.visibility}\n`);
@@ -127,6 +206,7 @@ const seed = async () => {
     console.log(`   Email    : ${ADMIN.email}`);
     console.log(`   Password : ${ADMIN.password}`);
     console.log(`\n🌐 Backend URL: ${process.env.CLIENT_URL || "http://localhost:5000"}`);
+    console.log(`\n📊 Tournaments Created: ${createdCount}/${TOURNAMENTS.length}`);
 
     process.exit(0);
   } catch (err) {
