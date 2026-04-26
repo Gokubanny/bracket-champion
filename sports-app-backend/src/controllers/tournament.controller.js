@@ -169,7 +169,38 @@ const cancelTournament = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Tournament cancelled." });
 });
 
-// Get dashboard stats
+// @desc    Get platform statistics
+// @route   GET /api/tournaments/stats
+// @access  Public
+const getPlatformStats = asyncHandler(async (req, res) => {
+  try {
+    const [totalTournaments, totalTeams, totalMatches] = await Promise.all([
+      Tournament.countDocuments(),
+      Team.countDocuments({ status: "approved" }),
+      Match.countDocuments({ status: "completed" }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalTournaments,
+        totalTeams,
+        totalMatches,
+      },
+    });
+  } catch (error) {
+    console.error("❌ Error fetching platform stats:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch platform statistics",
+      error: error.message,
+    });
+  }
+});
+
+// @desc    Get dashboard stats
+// @route   GET /api/tournaments/dashboard/stats
+// @access  Private
 const getDashboardStats = asyncHandler(async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -193,7 +224,9 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   }
 });
 
-// Get dashboard activity
+// @desc    Get dashboard activity
+// @route   GET /api/tournaments/dashboard/activity
+// @access  Private
 const getDashboardActivity = asyncHandler(async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -222,5 +255,6 @@ module.exports = {
   createTournament, getTournaments, getTournament,
   getTournamentByInviteCode, updateTournament,
   generateTournamentBracket, cancelTournament,
-  getDashboardStats, getDashboardActivity
+  getDashboardStats, getDashboardActivity,
+  getPlatformStats,
 };

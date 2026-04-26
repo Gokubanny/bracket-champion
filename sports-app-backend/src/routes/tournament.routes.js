@@ -5,12 +5,14 @@ const {
   getTournamentByInviteCode, updateTournament,
   generateTournamentBracket, cancelTournament,
   getDashboardStats, getDashboardActivity,
+  getPlatformStats,
 } = require("../controllers/tournament.controller");
 const { protect, restrictTo } = require("../middleware/auth.middleware");
 const upload = require("../middleware/upload.middleware");
 
 // Public - Specific routes BEFORE /:id
 router.get("/", getTournaments);
+router.get("/stats", getPlatformStats);
 router.get("/dashboard/stats", protect, getDashboardStats);
 router.get("/dashboard/activity", protect, getDashboardActivity);
 router.get("/invite/:code", getTournamentByInviteCode);

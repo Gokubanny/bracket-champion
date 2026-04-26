@@ -13,7 +13,6 @@ const testConnection = async (url: string) => {
     const healthUrl = url.includes("/api") ? url.replace("/api", "/api/health") : `${url}/api/health`;
     const response = await axios.get(healthUrl, { 
       timeout: 3000,
-      withCredentials: true 
     });
     return response.status === 200;
   } catch (error) {
