@@ -9,7 +9,9 @@ let usingFallback = false;
 
 const testConnection = async (url: string) => {
   try {
-    const response = await axios.get(`${url}/health`, { 
+    // Test the health endpoint at the correct path
+    const healthUrl = url.includes("/api") ? url.replace("/api", "/api/health") : `${url}/api/health`;
+    const response = await axios.get(healthUrl, { 
       timeout: 3000,
       withCredentials: true 
     });
@@ -26,9 +28,15 @@ const initializeApi = async () => {
 
   const primaryWorks = await testConnection(PRIMARY_URL);
   if (primaryWorks) {
+    currentApiUrl = PRIMARY_URL;
+    currentSocketUrl = PRIMARY_SOCKET;
+    usingFallback = false;
     console.log("✅ Using PRIMARY API:", currentApiUrl);
   } else {
-    console.error("❌ Primary API is down!");
+    console.error("❌ Primary API is down! Using fallback...");
+    currentApiUrl = PRIMARY_URL;
+    currentSocketUrl = PRIMARY_SOCKET;
+    usingFallback = true;
   }
 };
 
@@ -56,8 +64,12 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
+      const token = localStorage.getItem("token");
+      // Only redirect if user had a token (was logged in)
+      if (token) {
+        localStorage.removeItem("token");
+        window.location.href = "/login";
+      }
     }
     console.error("❌ API Error:", error.response?.data || error.message);
     return Promise.reject(error);
