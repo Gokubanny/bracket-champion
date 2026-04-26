@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createTournament, getTournaments, getTournament,
   getTournamentByInviteCode, updateTournament,
+  getTournamentTeams,
   generateTournamentBracket, cancelTournament,
   getDashboardStats, getDashboardActivity,
   getPlatformStats,
@@ -16,6 +17,7 @@ router.get("/stats", getPlatformStats);
 router.get("/dashboard/stats", protect, getDashboardStats);
 router.get("/dashboard/activity", protect, getDashboardActivity);
 router.get("/invite/:code", getTournamentByInviteCode);
+router.get("/:id/teams", getTournamentTeams);  // ← NEW
 router.get("/:id", getTournament);
 
 // Admin only

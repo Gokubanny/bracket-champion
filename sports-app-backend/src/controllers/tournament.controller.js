@@ -64,7 +64,24 @@ const getTournaments = asyncHandler(async (req, res) => {
 const getTournament = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findById(req.params.id).populate("createdBy", "fullName email");
   if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found." });
-  res.json({ success: true, data: { tournament } });
+  
+  // Get tournament teams and stats
+  const teams = await Team.find({ tournamentId: req.params.id });
+  const approvedTeams = teams.filter(t => t.status === "approved");
+  const pendingTeams = teams.filter(t => t.status === "pending");
+  
+  res.json({ 
+    success: true, 
+    data: { 
+      tournament,
+      teams: {
+        total: teams.length,
+        approved: approvedTeams.length,
+        pending: pendingTeams.length,
+        list: teams
+      }
+    } 
+  });
 });
 
 // @desc    Get tournament by invite code
@@ -96,6 +113,30 @@ const updateTournament = asyncHandler(async (req, res) => {
 
   await tournament.save();
   res.json({ success: true, message: "Tournament updated.", data: { tournament } });
+});
+
+// @desc    Get teams registered for tournament
+// @route   GET /api/tournaments/:id/teams
+// @access  Public
+const getTournamentTeams = asyncHandler(async (req, res) => {
+  const { tournamentId } = req.params;
+  const { status } = req.query;
+
+  const filter = { tournamentId };
+  if (status) filter.status = status;
+
+  const teams = await Team.find(filter).sort({ createdAt: -1 });
+
+  res.json({
+    success: true,
+    data: {
+      teams,
+      count: teams.length,
+      approved: teams.filter(t => t.status === "approved").length,
+      pending: teams.filter(t => t.status === "pending").length,
+      rejected: teams.filter(t => t.status === "rejected").length,
+    }
+  });
 });
 
 // @desc    Generate bracket — locks registration, starts tournament
@@ -252,9 +293,15 @@ const getDashboardActivity = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  createTournament, getTournaments, getTournament,
-  getTournamentByInviteCode, updateTournament,
-  generateTournamentBracket, cancelTournament,
-  getDashboardStats, getDashboardActivity,
+  createTournament, 
+  getTournaments, 
+  getTournament,
+  getTournamentByInviteCode, 
+  updateTournament,
+  getTournamentTeams,
+  generateTournamentBracket, 
+  cancelTournament,
+  getDashboardStats, 
+  getDashboardActivity,
   getPlatformStats,
 };
