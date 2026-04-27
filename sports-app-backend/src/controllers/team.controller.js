@@ -9,7 +9,8 @@ const { emitToTournament } = require("../socket");
 const registerTeam = asyncHandler(async (req, res) => {
   const { inviteCode } = req.params;
   const { teamName, members } = req.body;
-  const logo = req.file ? `/uploads/${req.file.filename}` : null;
+  // Cloudinary file upload - use req.file.path (secure_url)
+  const logo = req.file ? req.file.path : null;
 
   // Verify tournament exists by invite code
   const tournament = await Tournament.findOne({ inviteCode });

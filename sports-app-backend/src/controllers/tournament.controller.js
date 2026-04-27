@@ -14,7 +14,8 @@ const createTournament = asyncHandler(async (req, res) => {
     startDate, registrationDeadline, estimatedMatchDuration, visibility,
   } = req.body;
 
-  const banner = req.file ? `/uploads/${req.file.filename}` : null;
+  // Cloudinary file upload - use req.file.path (secure_url)
+  const banner = req.file ? req.file.path : null;
 
   const tournament = await Tournament.create({
     name, sport, description, banner,
@@ -109,7 +110,8 @@ const updateTournament = asyncHandler(async (req, res) => {
     if (req.body[field] !== undefined) tournament[field] = req.body[field];
   });
 
-  if (req.file) tournament.banner = `/uploads/${req.file.filename}`;
+  // Cloudinary file upload - use req.file.path (secure_url)
+  if (req.file) tournament.banner = req.file.path;
 
   await tournament.save();
   res.json({ success: true, message: "Tournament updated.", data: { tournament } });
