@@ -97,10 +97,17 @@ const ManageTournament = () => {
     },
   });
 
-  const copyInviteLink = () => {
+  const copyRegistrationLink = () => {
+    if (tournament) {
+      navigator.clipboard.writeText(`${window.location.origin}/join/${tournament.inviteCode}`);
+      toast.success("Team registration link copied!");
+    }
+  };
+
+  const copyViewerLink = () => {
     if (tournament) {
       navigator.clipboard.writeText(`${window.location.origin}/tournament/${tournament.inviteCode}`);
-      toast.success("Invite link copied!");
+      toast.success("Bracket viewing link copied!");
     }
   };
 
@@ -161,10 +168,21 @@ const ManageTournament = () => {
               </div>
               {tournament.description && <p className="text-sm text-muted-foreground">{tournament.description}</p>}
 
-              <div className="bg-muted rounded-lg p-3 flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Invite Link:</span>
-                <code className="text-sm flex-1 truncate">{window.location.origin}/tournament/{tournament.inviteCode}</code>
-                <Button size="sm" variant="ghost" onClick={copyInviteLink}><Copy className="h-4 w-4" /></Button>
+              <div className="space-y-2">
+                <div className="bg-muted rounded-lg p-3 flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground mb-1">Team Registration Link:</p>
+                    <code className="text-sm truncate block">{window.location.origin}/join/{tournament.inviteCode}</code>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={copyRegistrationLink}><Copy className="h-4 w-4" /></Button>
+                </div>
+                <div className="bg-muted rounded-lg p-3 flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground mb-1">Bracket Viewing Link:</p>
+                    <code className="text-sm truncate block">{window.location.origin}/tournament/{tournament.inviteCode}</code>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={copyViewerLink}><Copy className="h-4 w-4" /></Button>
+                </div>
               </div>
 
               <div className="flex gap-2 flex-wrap">

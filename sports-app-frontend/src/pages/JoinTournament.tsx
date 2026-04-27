@@ -169,23 +169,7 @@ const JoinTournament = () => {
           <SportBadge sport={tournament.sport as SportType} />
           <span className="text-sm text-muted-foreground">{tournament.name}</span>
         </div>
-        <h1 className="text-2xl font-bold">Register Your Team</h1>
-      </div>
-
-      {/* Step Indicator */}
-      <div className="flex items-center gap-2 mb-8">
-        {[{ n: 1, label: "Team Info" }, { n: 2, label: "Rep Info" }, { n: 3, label: "Squad" }].map((s) => (
-          <div key={s.n} className="flex items-center gap-2 flex-1">
-            <div className={cn(
-              "h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
-              s.n <= step ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-            )}>
-              {s.n < step ? <Check className="h-4 w-4" /> : s.n}
-            </div>
-            <span className="text-xs text-muted-foreground hidden sm:inline">{s.label}</span>
-            {s.n < 3 && <div className={cn("h-0.5 flex-1", s.n < step ? "bg-primary" : "bg-muted")} />}
-          </div>
-        ))}
+        <h1 className="text-2xl font-bold">Team Registration</h1>
       </div>
 
       <Form {...form}>
@@ -199,7 +183,7 @@ const JoinTournament = () => {
                     <FormField control={form.control} name="teamName" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Team Name</FormLabel>
-                        <FormControl><Input placeholder="Thunder Hawks" {...field} /></FormControl>
+                        <FormControl><Input placeholder="Your awesome team" {...field} /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )} />

@@ -1,24 +1,26 @@
 const express = require("express");
 const router = express.Router();
 const {
-  registerTeam, getTeamsByTournament, getTeam,
-  updateTeamStatus, updateSquad, getMyTeam,
+  registerTeam,
+  getTeamsByTournament,
+  approveTeam,
+  rejectTeam,
+  getTeamById,
 } = require("../controllers/team.controller");
 const { protect, restrictTo } = require("../middleware/auth.middleware");
 const upload = require("../middleware/upload.middleware");
 
-// Public
-router.get("/tournament/:tournamentId", getTeamsByTournament);
-router.get("/:id", getTeam);
-
-// Self-registration via invite code (creates viewer account)
+// Public - Register team with invite code (inviteCode in URL)
 router.post("/register/:inviteCode", upload.single("logo"), registerTeam);
 
-// Viewer (team rep)
-router.get("/my-team/:tournamentId", protect, restrictTo("viewer"), getMyTeam);
-router.patch("/:id/squad", protect, restrictTo("viewer"), upload.single("logo"), updateSquad);
+// Get teams for tournament (public)
+router.get("/tournament/:tournamentId", getTeamsByTournament);
 
-// Admin only
-router.patch("/:id/status", protect, restrictTo("admin"), updateTeamStatus);
+// Get single team
+router.get("/:teamId", getTeamById);
+
+// Admin only - Approve/Reject teams
+router.patch("/:teamId/approve", protect, restrictTo("admin"), approveTeam);
+router.patch("/:teamId/reject", protect, restrictTo("admin"), rejectTeam);
 
 module.exports = router;

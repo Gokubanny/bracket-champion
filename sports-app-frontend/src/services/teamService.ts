@@ -41,7 +41,7 @@ export const teamService = {
     return mapTeam(data?.data?.team ?? data?.data ?? data);
   },
 
-  registerTeam: async (tournamentId: string, payload: RegisterTeamPayload): Promise<Team> => {
+  registerTeam: async (inviteCode: string, payload: RegisterTeamPayload): Promise<Team> => {
     const formData = new FormData();
     formData.append("teamName", payload.teamName);
     formData.append("color", payload.color);
@@ -56,7 +56,7 @@ export const teamService = {
       });
     }
     if (payload.logo) formData.append("logo", payload.logo);
-    const { data } = await api.post(`/teams/register/${tournamentId}`, formData, {
+    const { data } = await api.post(`/teams/register/${inviteCode}`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return mapTeam(data?.data?.team ?? data?.data ?? data);
