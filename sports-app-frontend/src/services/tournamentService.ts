@@ -16,7 +16,6 @@ export interface CreateTournamentPayload {
 export const tournamentService = {
   getAll: async (filters?: { status?: string; sport?: string; search?: string }): Promise<Tournament[]> => {
     const { data } = await api.get("/tournaments", { params: filters });
-    // Backend returns { success, data: { tournaments: [...], count: n } }
     const raw = data?.data?.tournaments ?? data?.data ?? data ?? [];
     return Array.isArray(raw) ? raw.map(mapTournament) : [];
   },
@@ -97,31 +96,102 @@ export const tournamentService = {
     try {
       const { data } = await api.get("/tournaments/dashboard/activity");
       const d = data?.data ?? data ?? {};
+
+      const recentTournaments: any[] = d.recentTournaments ?? [];
+      const recentTeams: any[]       = d.recentTeams ?? [];
+      const recentMatches: any[]     = d.recentMatches ?? [];
+
       const activities: Activity[] = [];
-      const recentTournaments = d.recentTournaments ?? [];
-      const recentMatches = d.recentMatches ?? [];
+
+      // ── Tournament events ───────────────────────────────────────
+      // Each tournament is sorted by updatedAt on the backend, so we
+      // can distinguish creation vs status-change by comparing the two dates.
       recentTournaments.forEach((t: any) => {
-        activities.push({
-          id: t._id ?? t.id,
-          type: "tournament_created",
-          message: `Tournament "${t.name}" created`,
-          timestamp: t.createdAt,
-          tournamentId: t._id ?? t.id,
-        });
-      });
-      recentMatches.forEach((m: any) => {
-        if (m.status === "completed") {
+        const id = t._id ?? t.id;
+        const createdAt  = new Date(t.createdAt).getTime();
+        const updatedAt  = new Date(t.updatedAt).getTime();
+        const wasUpdated = updatedAt - createdAt > 5000; // >5 s gap = a real status change
+
+        if (wasUpdated) {
+          const statusMessages: Record<string, string> = {
+            active:    `Bracket generated for "${t.name}"`,
+            completed: `"${t.name}" completed 🏆`,
+            cancelled: `"${t.name}" was cancelled`,
+          };
+          const message = statusMessages[t.status];
+          if (message) {
+            activities.push({
+              id: `${id}-status`,
+              type: "tournament_updated",
+              message,
+              timestamp: t.updatedAt,
+              tournamentId: id,
+            });
+          }
+        } else {
           activities.push({
-            id: m._id ?? m.id,
-            type: "result_confirmed",
-            message: `Match result confirmed — Round ${m.round}`,
-            timestamp: m.confirmedAt ?? m.updatedAt,
-            tournamentId: m.tournamentId,
+            id: `${id}-created`,
+            type: "tournament_created",
+            message: `Tournament "${t.name}" created`,
+            timestamp: t.createdAt,
+            tournamentId: id,
           });
         }
       });
+
+      // ── Team events ─────────────────────────────────────────────
+      // Use createdAt for registrations, updatedAt for status changes.
+      recentTeams.forEach((t: any) => {
+        const id             = t._id ?? t.id;
+        const tournamentName = t.tournamentId?.name ?? "a tournament";
+        const createdAt      = new Date(t.createdAt).getTime();
+        const updatedAt      = new Date(t.updatedAt).getTime();
+        const wasUpdated     = updatedAt - createdAt > 5000;
+
+        if (!wasUpdated) {
+          // Fresh registration
+          activities.push({
+            id: `${id}-registered`,
+            type: "team_registered",
+            message: `"${t.name}" registered for ${tournamentName}`,
+            timestamp: t.createdAt,
+            tournamentId: t.tournamentId?._id ?? t.tournamentId,
+          });
+        } else if (t.status === "approved") {
+          activities.push({
+            id: `${id}-approved`,
+            type: "team_approved",
+            message: `"${t.name}" was approved for ${tournamentName}`,
+            timestamp: t.updatedAt,
+            tournamentId: t.tournamentId?._id ?? t.tournamentId,
+          });
+        } else if (t.status === "rejected") {
+          activities.push({
+            id: `${id}-rejected`,
+            type: "team_rejected",
+            message: `"${t.name}" was rejected from ${tournamentName}`,
+            timestamp: t.updatedAt,
+            tournamentId: t.tournamentId?._id ?? t.tournamentId,
+          });
+        }
+      });
+
+      // ── Match events ────────────────────────────────────────────
+      recentMatches.forEach((m: any) => {
+        const id             = m._id ?? m.id;
+        const tournamentName = m.tournamentId?.name ?? "a tournament";
+        activities.push({
+          id: `${id}-result`,
+          type: "result_confirmed",
+          message: `Match result confirmed — Round ${m.round} in ${tournamentName}`,
+          timestamp: m.confirmedAt ?? m.updatedAt,
+          tournamentId: m.tournamentId?._id ?? m.tournamentId,
+        });
+      });
+
+      // Sort all events newest-first, return top 15
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      return activities.slice(0, 10);
+      return activities.slice(0, 15);
     } catch {
       return [];
     }
@@ -218,7 +288,7 @@ function mapMatch(m: any) {
   return {
     id: m._id ?? m.id,
     tournamentId: m.tournamentId,
-    round: m.round - 1, // 0-indexed for bracket display
+    round: m.round - 1,
     matchNumber: m.matchNumber - 1,
     teamA: mapTeam(m.teamA),
     teamB: mapTeam(m.teamB),

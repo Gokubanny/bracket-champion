@@ -14,7 +14,6 @@ const createTournament = asyncHandler(async (req, res) => {
     startDate, registrationDeadline, estimatedMatchDuration, visibility,
   } = req.body;
 
-  // Cloudinary file upload - use req.file.path (secure_url)
   const banner = req.file ? req.file.path : null;
 
   const tournament = await Tournament.create({
@@ -34,11 +33,9 @@ const getTournaments = asyncHandler(async (req, res) => {
   const { status, sport, search } = req.query;
   const filter = {};
 
-  // If user is authenticated and is admin, show only their tournaments
   if (req.user && req.user.role === "admin") {
     filter.createdBy = req.user._id;
   } else {
-    // Otherwise show only public tournaments
     filter.visibility = "public";
   }
 
@@ -50,12 +47,9 @@ const getTournaments = asyncHandler(async (req, res) => {
     .populate("createdBy", "name email")
     .sort({ createdAt: -1 });
 
-  res.json({ 
-    success: true, 
-    data: { 
-      tournaments,
-      count: tournaments.length 
-    } 
+  res.json({
+    success: true,
+    data: { tournaments, count: tournaments.length },
   });
 });
 
@@ -65,23 +59,22 @@ const getTournaments = asyncHandler(async (req, res) => {
 const getTournament = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findById(req.params.id).populate("createdBy", "fullName email");
   if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found." });
-  
-  // Get tournament teams and stats
+
   const teams = await Team.find({ tournamentId: req.params.id });
   const approvedTeams = teams.filter(t => t.status === "approved");
   const pendingTeams = teams.filter(t => t.status === "pending");
-  
-  res.json({ 
-    success: true, 
-    data: { 
+
+  res.json({
+    success: true,
+    data: {
       tournament,
       teams: {
         total: teams.length,
         approved: approvedTeams.length,
         pending: pendingTeams.length,
-        list: teams
-      }
-    } 
+        list: teams,
+      },
+    },
   });
 });
 
@@ -110,7 +103,6 @@ const updateTournament = asyncHandler(async (req, res) => {
     if (req.body[field] !== undefined) tournament[field] = req.body[field];
   });
 
-  // Cloudinary file upload - use req.file.path (secure_url)
   if (req.file) tournament.banner = req.file.path;
 
   await tournament.save();
@@ -137,7 +129,7 @@ const getTournamentTeams = asyncHandler(async (req, res) => {
       approved: teams.filter(t => t.status === "approved").length,
       pending: teams.filter(t => t.status === "pending").length,
       rejected: teams.filter(t => t.status === "rejected").length,
-    }
+    },
   });
 });
 
@@ -225,11 +217,7 @@ const getPlatformStats = asyncHandler(async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: {
-        totalTournaments,
-        totalTeams,
-        totalMatches,
-      },
+      data: { totalTournaments, totalTeams, totalMatches },
     });
   } catch (error) {
     console.error("❌ Error fetching platform stats:", error);
@@ -247,11 +235,23 @@ const getPlatformStats = asyncHandler(async (req, res) => {
 const getDashboardStats = asyncHandler(async (req, res) => {
   try {
     const userId = req.user?._id;
-    
-    const totalTournaments = await Tournament.countDocuments({ createdBy: userId });
-    const activeTournaments = await Tournament.countDocuments({ createdBy: userId, status: "active" });
-    const completedTournaments = await Tournament.countDocuments({ createdBy: userId, status: "completed" });
-    const completedMatches = await Match.countDocuments({ createdBy: userId, status: "completed" });
+
+    // Get all IDs for this admin once and reuse across all count queries
+    const adminTournamentIds = await Tournament.find({ createdBy: userId }).distinct("_id");
+
+    const [
+      totalTournaments,
+      activeTournaments,
+      completedTournaments,
+      completedMatches,
+      pendingApprovals, // FIX: was Match.countDocuments({ createdBy: userId }) — Match has no createdBy field, always returned 0
+    ] = await Promise.all([
+      Tournament.countDocuments({ createdBy: userId }),
+      Tournament.countDocuments({ createdBy: userId, status: "active" }),
+      Tournament.countDocuments({ createdBy: userId, status: "completed" }),
+      Match.countDocuments({ tournamentId: { $in: adminTournamentIds }, status: "completed" }),
+      Team.countDocuments({ tournamentId: { $in: adminTournamentIds }, status: "pending" }),
+    ]);
 
     res.json({
       success: true,
@@ -260,6 +260,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
         activeTournaments,
         completedTournaments,
         completedMatches,
+        pendingApprovals,
       },
     });
   } catch (error) {
@@ -273,21 +274,42 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 const getDashboardActivity = asyncHandler(async (req, res) => {
   try {
     const userId = req.user?._id;
-    
-    const recentTournaments = await Tournament.find({ createdBy: userId })
-      .sort({ createdAt: -1 })
-      .limit(5);
 
-    const recentMatches = await Match.find()
-      .sort({ createdAt: -1 })
-      .limit(5);
+    // Scope everything to this admin's tournaments
+    const adminTournamentIds = await Tournament.find({ createdBy: userId }).distinct("_id");
+
+    const [recentTournaments, recentTeams, recentMatches] = await Promise.all([
+      // Sort by updatedAt so status changes (active, completed, cancelled) surface,
+      // not just the original creation order
+      Tournament.find({ createdBy: userId })
+        .sort({ updatedAt: -1 })
+        .limit(10)
+        .select("name sport status createdAt updatedAt"),
+
+      // NEW: team events were never queried — registrations, approvals, rejections
+      // all went completely untracked before this fix
+      Team.find({ tournamentId: { $in: adminTournamentIds } })
+        .sort({ updatedAt: -1 })
+        .limit(15)
+        .select("name status createdAt updatedAt tournamentId")
+        .populate("tournamentId", "name"),
+
+      // FIX: was Match.find() with no scope — pulled any random matches from the DB.
+      // Now scoped to admin's tournaments, completed + non-bye only, sorted by confirmedAt
+      Match.find({
+        tournamentId: { $in: adminTournamentIds },
+        status: "completed",
+        isBye: false,
+      })
+        .sort({ confirmedAt: -1 })
+        .limit(10)
+        .select("round matchNumber confirmedAt tournamentId")
+        .populate("tournamentId", "name"),
+    ]);
 
     res.json({
       success: true,
-      data: {
-        recentMatches,
-        recentTournaments,
-      },
+      data: { recentTournaments, recentTeams, recentMatches },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -295,15 +317,15 @@ const getDashboardActivity = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  createTournament, 
-  getTournaments, 
+  createTournament,
+  getTournaments,
   getTournament,
-  getTournamentByInviteCode, 
+  getTournamentByInviteCode,
   updateTournament,
   getTournamentTeams,
-  generateTournamentBracket, 
+  generateTournamentBracket,
   cancelTournament,
-  getDashboardStats, 
+  getDashboardStats,
   getDashboardActivity,
   getPlatformStats,
 };
