@@ -23,42 +23,58 @@ export const teamService = {
     return mapTeam(data?.data?.team ?? data?.data ?? data);
   },
 
+  // FIX: was calling PATCH /teams/:id/status which doesn't exist on the backend.
+  // Routes are /approve and /reject — updated to match.
   approve: async (teamId: string): Promise<void> => {
-    await api.patch(`/teams/${teamId}/status`, { status: "approved" });
+    await api.patch(`/teams/${teamId}/approve`);
   },
 
   reject: async (teamId: string): Promise<void> => {
-    await api.patch(`/teams/${teamId}/status`, { status: "rejected" });
+    await api.patch(`/teams/${teamId}/reject`);
   },
 
-  updateSquad: async (teamId: string, players: Omit<Player, "id" | "teamId">[]): Promise<Team> => {
+  updateSquad: async (
+    teamId: string,
+    players: Omit<Player, "id" | "teamId">[]
+  ): Promise<Team> => {
     const { data } = await api.patch(`/teams/${teamId}/squad`, { players });
     return mapTeam(data?.data?.team ?? data?.data ?? data);
   },
 
-  updateTeamInfo: async (teamId: string, payload: { name?: string; color?: string }): Promise<Team> => {
+  updateTeamInfo: async (
+    teamId: string,
+    payload: { name?: string; color?: string }
+  ): Promise<Team> => {
     const { data } = await api.patch(`/teams/${teamId}/squad`, payload);
     return mapTeam(data?.data?.team ?? data?.data ?? data);
   },
 
-  registerTeam: async (inviteCode: string, payload: RegisterTeamPayload): Promise<Team> => {
+  registerTeam: async (
+    inviteCode: string,
+    payload: RegisterTeamPayload
+  ): Promise<Team> => {
     const formData = new FormData();
     formData.append("teamName", payload.teamName);
     formData.append("color", payload.color);
     formData.append("repFullName", payload.repName);
     formData.append("repEmail", payload.repEmail);
     formData.append("repPassword", payload.repPassword);
+
+    // FIX: previously appended players as individual bracket-notation fields
+    // e.g. players[0][name], players[0][jerseyNumber] — multer does NOT parse
+    // nested bracket notation, so req.body.players was always undefined on the
+    // backend. Sending as a single JSON string is the correct approach with multer.
     if (payload.players?.length) {
-      payload.players.forEach((p, i) => {
-        formData.append(`players[${i}][name]`, p.name);
-        formData.append(`players[${i}][jerseyNumber]`, String(p.jerseyNumber));
-        formData.append(`players[${i}][position]`, p.position);
-      });
+      formData.append("players", JSON.stringify(payload.players));
     }
+
     if (payload.logo) formData.append("logo", payload.logo);
-    const { data } = await api.post(`/teams/register/${inviteCode}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+
+    const { data } = await api.post(
+      `/teams/register/${inviteCode}`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
     return mapTeam(data?.data?.team ?? data?.data ?? data);
   },
 };
