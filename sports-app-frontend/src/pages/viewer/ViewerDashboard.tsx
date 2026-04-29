@@ -15,41 +15,58 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import SportBadge from "@/components/ui/SportBadge";
 import BracketView from "@/components/bracket/BracketView";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
-import { Shield, Users, Plus, Trash2, Save, Loader2, Lock, GitBranch, BarChart3, Calendar, Trophy } from "lucide-react";
+import { Shield, Users, Plus, Trash2, Save, Loader2, Lock, GitBranch, BarChart3, Calendar, Trophy, ChevronDown } from "lucide-react";
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { useSound } from "@/context/SoundContext";
-import type { Player } from "@/types";
+import type { Player, Team } from "@/types";
 import type { SportType, TournamentStatus } from "@/constants/sports";
 
 const ViewerDashboard = () => {
   const { user } = useAuth();
-  const tournamentId = "current";
   const queryClient = useQueryClient();
   const { play } = useSound();
 
-  const { data: team, isLoading } = useQuery({
-    queryKey: ["my-team", tournamentId],
-    queryFn: () => teamService.getMyTeam(tournamentId),
+  // FIX: was hardcoding tournamentId = "current" and calling getMyTeam("current")
+  // which hit a non-existent route. Now we fetch all the user's teams then let
+  // them select which one to view if they belong to multiple tournaments.
+  const { data: myTeams, isLoading } = useQuery({
+    queryKey: ["my-teams"],
+    queryFn: teamService.getMyTeams,
   });
 
+  // If the user reps multiple teams, let them pick one; default to the first
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+
+  const team: Team | undefined =
+    myTeams?.find((t) => t.id === selectedTeamId) ?? myTeams?.[0];
+
+  // Sync selectedTeamId once teams load
+  useEffect(() => {
+    if (myTeams && myTeams.length > 0 && !selectedTeamId) {
+      setSelectedTeamId(myTeams[0].id);
+    }
+  }, [myTeams, selectedTeamId]);
+
+  const tournamentId = team?.tournamentId;
+
   const { data: tournament } = useQuery({
-    queryKey: ["viewer-tournament", team?.tournamentId],
-    queryFn: () => tournamentService.getById(team!.tournamentId),
-    enabled: !!team?.tournamentId,
+    queryKey: ["viewer-tournament", tournamentId],
+    queryFn: () => tournamentService.getById(tournamentId!),
+    enabled: !!tournamentId,
   });
 
   const { data: bracket, refetch: refetchBracket } = useQuery({
-    queryKey: ["viewer-bracket", team?.tournamentId],
-    queryFn: () => tournamentService.getBracket(team!.tournamentId),
-    enabled: !!team?.tournamentId,
+    queryKey: ["viewer-bracket", tournamentId],
+    queryFn: () => tournamentService.getBracket(tournamentId!),
+    enabled: !!tournamentId,
   });
 
   const { data: leaderboard, refetch: refetchLeaderboard } = useQuery({
-    queryKey: ["viewer-leaderboard", team?.tournamentId],
-    queryFn: () => tournamentService.getLeaderboard(team!.tournamentId),
-    enabled: !!team?.tournamentId,
+    queryKey: ["viewer-leaderboard", tournamentId],
+    queryFn: () => tournamentService.getLeaderboard(tournamentId!),
+    enabled: !!tournamentId,
   });
 
   const [editingPlayers, setEditingPlayers] = useState<Omit<Player, "id" | "teamId">[]>([]);
@@ -59,17 +76,20 @@ const ViewerDashboard = () => {
 
   // Socket.io
   useEffect(() => {
-    if (!team?.tournamentId) return;
+    if (!tournamentId) return;
     socketService.connect();
-    socketService.joinTournament(team.tournamentId);
+    socketService.joinTournament(tournamentId);
     const unsub1 = socketService.onMatchResultConfirmed(() => {
       play("whistle", { volume: 0.35 });
       setTimeout(() => play("cheer", { volume: 0.25 }), 250);
       refetchBracket();
       refetchLeaderboard();
     });
-    return () => { unsub1(); socketService.leaveTournament(team.tournamentId); };
-  }, [team?.tournamentId, refetchBracket, refetchLeaderboard, play]);
+    return () => {
+      unsub1();
+      socketService.leaveTournament(tournamentId);
+    };
+  }, [tournamentId, refetchBracket, refetchLeaderboard, play]);
 
   const startEditing = () => {
     if (team) {
@@ -101,7 +121,7 @@ const ViewerDashboard = () => {
       await teamService.updateSquad(team.id, editingPlayers);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-team"] });
+      queryClient.invalidateQueries({ queryKey: ["my-teams"] });
       setIsEditing(false);
       toast.success("Team updated!");
     },
@@ -120,17 +140,24 @@ const ViewerDashboard = () => {
     );
   }
 
-  if (!team) {
+  if (!myTeams || myTeams.length === 0) {
     return (
       <div className="max-w-4xl mx-auto">
-        <EmptyState icon={<Shield className="h-8 w-8" />} title="No team found" description="You haven't been assigned to any tournament team yet." />
+        <EmptyState
+          icon={<Shield className="h-8 w-8" />}
+          title="No team found"
+          description="You haven't been assigned to any tournament team yet."
+        />
       </div>
     );
   }
 
+  if (!team) return null;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <PageBreadcrumbs items={[{ label: "My Team" }]} />
+
       {/* Welcome Banner */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <Card className="glass-card overflow-hidden">
@@ -139,10 +166,31 @@ const ViewerDashboard = () => {
               <div className="h-14 w-14 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: team.color + "33" }}>
                 <Shield className="h-7 w-7" style={{ color: team.color }} />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <h1 className="text-xl font-bold">Welcome, {user?.fullName ?? team.repName}!</h1>
-                <p className="text-sm text-muted-foreground">Team: <span className="font-medium text-foreground">{team.name}</span></p>
+                <p className="text-sm text-muted-foreground">
+                  Team: <span className="font-medium text-foreground">{team.name}</span>
+                </p>
               </div>
+
+              {/* Team switcher — only shown when the user reps multiple teams */}
+              {myTeams.length > 1 && (
+                <div className="relative shrink-0">
+                  <select
+                    value={selectedTeamId ?? ""}
+                    onChange={(e) => {
+                      setSelectedTeamId(e.target.value);
+                      setIsEditing(false);
+                    }}
+                    className="appearance-none bg-muted border border-border rounded-md pl-3 pr-8 py-1.5 text-sm cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    {myTeams.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                </div>
+              )}
             </div>
           </div>
         </Card>
@@ -224,7 +272,10 @@ const ViewerDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
-              {(isEditing ? editingPlayers : team.players.map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position }))).map((player, i) => (
+              {(isEditing
+                ? editingPlayers
+                : team.players.map(p => ({ name: p.name, jerseyNumber: p.jerseyNumber, position: p.position }))
+              ).map((player, i) => (
                 <div key={i} className="flex items-center gap-2">
                   {isEditing ? (
                     <>

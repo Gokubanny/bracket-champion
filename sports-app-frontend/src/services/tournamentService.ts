@@ -13,6 +13,16 @@ export interface CreateTournamentPayload {
   visibility: "public" | "private";
 }
 
+export interface UpdateTournamentPayload {
+  name?: string;
+  description?: string;
+  startDate?: string;
+  registrationDeadline?: string;
+  estimatedMatchDuration?: string;
+  visibility?: "public" | "private";
+  banner?: File;
+}
+
 export const tournamentService = {
   getAll: async (filters?: { status?: string; sport?: string; search?: string }): Promise<Tournament[]> => {
     const { data } = await api.get("/tournaments", { params: filters });
@@ -47,8 +57,18 @@ export const tournamentService = {
     return mapTournament(data?.data?.tournament ?? data?.data ?? data);
   },
 
-  update: async (id: string, payload: Partial<CreateTournamentPayload>): Promise<Tournament> => {
-    const { data } = await api.patch(`/tournaments/${id}`, payload);
+  // FIX: was sending JSON — the backend route has upload.single("banner") middleware
+  // so it expects multipart/form-data. Switched to FormData so banner file uploads work.
+  update: async (id: string, payload: UpdateTournamentPayload): Promise<Tournament> => {
+    const formData = new FormData();
+    const { banner, ...rest } = payload;
+    Object.entries(rest).forEach(([key, value]) => {
+      if (value !== undefined) formData.append(key, String(value));
+    });
+    if (banner instanceof File) formData.append("banner", banner);
+    const { data } = await api.patch(`/tournaments/${id}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return mapTournament(data?.data?.tournament ?? data?.data ?? data);
   },
 
@@ -103,14 +123,11 @@ export const tournamentService = {
 
       const activities: Activity[] = [];
 
-      // ── Tournament events ───────────────────────────────────────
-      // Each tournament is sorted by updatedAt on the backend, so we
-      // can distinguish creation vs status-change by comparing the two dates.
       recentTournaments.forEach((t: any) => {
         const id = t._id ?? t.id;
         const createdAt  = new Date(t.createdAt).getTime();
         const updatedAt  = new Date(t.updatedAt).getTime();
-        const wasUpdated = updatedAt - createdAt > 5000; // >5 s gap = a real status change
+        const wasUpdated = updatedAt - createdAt > 5000;
 
         if (wasUpdated) {
           const statusMessages: Record<string, string> = {
@@ -139,8 +156,6 @@ export const tournamentService = {
         }
       });
 
-      // ── Team events ─────────────────────────────────────────────
-      // Use createdAt for registrations, updatedAt for status changes.
       recentTeams.forEach((t: any) => {
         const id             = t._id ?? t.id;
         const tournamentName = t.tournamentId?.name ?? "a tournament";
@@ -149,7 +164,6 @@ export const tournamentService = {
         const wasUpdated     = updatedAt - createdAt > 5000;
 
         if (!wasUpdated) {
-          // Fresh registration
           activities.push({
             id: `${id}-registered`,
             type: "team_registered",
@@ -176,7 +190,6 @@ export const tournamentService = {
         }
       });
 
-      // ── Match events ────────────────────────────────────────────
       recentMatches.forEach((m: any) => {
         const id             = m._id ?? m.id;
         const tournamentName = m.tournamentId?.name ?? "a tournament";
@@ -189,7 +202,6 @@ export const tournamentService = {
         });
       });
 
-      // Sort all events newest-first, return top 15
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       return activities.slice(0, 15);
     } catch {

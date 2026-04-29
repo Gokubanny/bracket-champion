@@ -9,101 +9,60 @@ const { emitToTournament } = require("../socket");
 // @access  Public
 const registerTeam = asyncHandler(async (req, res) => {
   const { inviteCode } = req.params;
-
-  // FIX 1: Destructure all fields the frontend actually sends.
-  // Removed `members` (wrong name, wrong format). Added color, rep fields.
   const { teamName, color, repFullName, repEmail, repPassword, players } = req.body;
-
-  // Cloudinary file upload - use req.file.path (secure_url)
   const logo = req.file ? req.file.path : null;
 
-  // Verify tournament exists by invite code
   const tournament = await Tournament.findOne({ inviteCode });
   if (!tournament) {
-    return res.status(404).json({
-      success: false,
-      message: "Invalid invite code",
-    });
+    return res.status(404).json({ success: false, message: "Invalid invite code" });
   }
 
-  // Check if registration is open
   if (tournament.status !== "registration") {
-    return res.status(400).json({
-      success: false,
-      message: "Tournament registration is closed",
-    });
+    return res.status(400).json({ success: false, message: "Tournament registration is closed" });
   }
 
-  // Check if team name already taken in this tournament
-  const existingTeam = await Team.findOne({
-    name: teamName,
-    tournamentId: tournament._id,
-  });
+  const existingTeam = await Team.findOne({ name: teamName, tournamentId: tournament._id });
   if (existingTeam) {
-    return res.status(400).json({
-      success: false,
-      message: "Team name already registered for this tournament",
-    });
+    return res.status(400).json({ success: false, message: "Team name already registered for this tournament" });
   }
 
-  // Check team slots available
-  const registeredTeams = await Team.countDocuments({
-    tournamentId: tournament._id,
-  });
+  const registeredTeams = await Team.countDocuments({ tournamentId: tournament._id });
   if (registeredTeams >= tournament.teamSlots) {
-    return res.status(400).json({
-      success: false,
-      message: "Tournament is full",
-    });
+    return res.status(400).json({ success: false, message: "Tournament is full" });
   }
 
-  // FIX 2: Create (or find) a User account for the team rep.
-  // Team.model requires `repId` (ObjectId ref to User) — previously the
-  // controller never set this, causing a Mongoose ValidationError → 500.
   let rep = await User.findOne({ email: repEmail });
   if (!rep) {
     if (!repFullName || !repPassword) {
-      return res.status(400).json({
-        success: false,
-        message: "Rep full name and password are required for new accounts",
-      });
+      return res.status(400).json({ success: false, message: "Rep full name and password are required for new accounts" });
     }
     rep = await User.create({
       fullName: repFullName,
       email: repEmail,
-      passwordHash: repPassword, // User pre-save hook hashes this
+      passwordHash: repPassword,
       role: "viewer",
     });
   }
 
-  // FIX 3: Parse players correctly.
-  // The frontend sends players as a JSON string (after our teamService.ts fix).
-  // Previously the controller read `members` and tried JSON.parse on FormData
-  // bracket-notation fields — both the name and the format were wrong.
   let parsedPlayers = [];
   if (players) {
     try {
       parsedPlayers = typeof players === "string" ? JSON.parse(players) : players;
     } catch {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid players data",
-      });
+      return res.status(400).json({ success: false, message: "Invalid players data" });
     }
   }
 
-  // Create team — now with correct field names that match Team.model.js
   const team = await Team.create({
     name: teamName,
     color: color ?? "#3B82F6",
     logo,
     tournamentId: tournament._id,
-    repId: rep._id,        // FIX: was `registeredBy` which doesn't exist on schema
-    players: parsedPlayers, // FIX: was `members` which doesn't exist on schema
+    repId: rep._id,
+    players: parsedPlayers,
     status: "pending",
   });
 
-  // Populate repId so response includes rep name/email
   await team.populate("repId", "fullName email");
 
   emitToTournament(tournament._id.toString(), "team:registered", {
@@ -115,10 +74,7 @@ const registerTeam = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: "Team registered successfully! Awaiting admin approval.",
-    data: {
-      team,
-      tournamentId: tournament._id,
-    },
+    data: { team, tournamentId: tournament._id },
   });
 });
 
@@ -150,14 +106,23 @@ const getTeamsByTournament = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get all teams the logged-in user reps
+// @route   GET /api/teams/my-teams
+// @access  Private (viewer/admin)
+const getMyTeams = asyncHandler(async (req, res) => {
+  const teams = await Team.find({ repId: req.user._id })
+    .populate("repId", "fullName email")
+    .populate("tournamentId", "name sport status startDate inviteCode")
+    .sort({ createdAt: -1 });
+
+  res.json({ success: true, data: { teams } });
+});
+
 // @desc    Get single team
 // @route   GET /api/teams/:teamId
 // @access  Public
 const getTeamById = asyncHandler(async (req, res) => {
-  const team = await Team.findById(req.params.teamId).populate(
-    "repId",
-    "fullName email"
-  );
+  const team = await Team.findById(req.params.teamId).populate("repId", "fullName email");
   if (!team) {
     return res.status(404).json({ success: false, message: "Team not found" });
   }
@@ -173,8 +138,18 @@ const approveTeam = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: "Team not found" });
   }
 
+  const wasAlreadyApproved = team.status === "approved";
+
   team.status = "approved";
   await team.save();
+
+  // FIX: increment approvedTeamsCount on the tournament so the card
+  // fill/progress bar actually reflects reality. Guard against double-approving.
+  if (!wasAlreadyApproved) {
+    await Tournament.findByIdAndUpdate(team.tournamentId, {
+      $inc: { approvedTeamsCount: 1 },
+    });
+  }
 
   emitToTournament(team.tournamentId.toString(), "team:approved", {
     teamId: team._id,
@@ -194,9 +169,19 @@ const rejectTeam = asyncHandler(async (req, res) => {
     return res.status(404).json({ success: false, message: "Team not found" });
   }
 
+  const wasApproved = team.status === "approved";
+
   team.status = "rejected";
   team.rejectionReason = reason;
   await team.save();
+
+  // FIX: if we're rejecting a previously approved team, decrement the count
+  // so the progress bar doesn't show phantom approved teams
+  if (wasApproved) {
+    await Tournament.findByIdAndUpdate(team.tournamentId, {
+      $inc: { approvedTeamsCount: -1 },
+    });
+  }
 
   emitToTournament(team.tournamentId.toString(), "team:rejected", {
     teamId: team._id,
@@ -210,6 +195,7 @@ const rejectTeam = asyncHandler(async (req, res) => {
 module.exports = {
   registerTeam,
   getTeamsByTournament,
+  getMyTeams,
   approveTeam,
   rejectTeam,
   getTeamById,

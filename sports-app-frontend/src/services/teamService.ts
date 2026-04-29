@@ -18,13 +18,15 @@ export const teamService = {
     return Array.isArray(raw) ? raw.map(mapTeam) : [];
   },
 
-  getMyTeam: async (tournamentId: string): Promise<Team> => {
-    const { data } = await api.get(`/teams/my-team/${tournamentId}`);
-    return mapTeam(data?.data?.team ?? data?.data ?? data);
+  // FIX: was calling GET /teams/my-team/:tournamentId which doesn't exist on the backend,
+  // and ViewerDashboard was passing the literal string "current" as the ID.
+  // Replaced with GET /teams/my-teams — returns all teams the logged-in rep owns.
+  getMyTeams: async (): Promise<Team[]> => {
+    const { data } = await api.get("/teams/my-teams");
+    const raw = data?.data?.teams ?? data?.data ?? data ?? [];
+    return Array.isArray(raw) ? raw.map(mapTeam) : [];
   },
 
-  // FIX: was calling PATCH /teams/:id/status which doesn't exist on the backend.
-  // Routes are /approve and /reject — updated to match.
   approve: async (teamId: string): Promise<void> => {
     await api.patch(`/teams/${teamId}/approve`);
   },
@@ -59,17 +61,10 @@ export const teamService = {
     formData.append("repFullName", payload.repName);
     formData.append("repEmail", payload.repEmail);
     formData.append("repPassword", payload.repPassword);
-
-    // FIX: previously appended players as individual bracket-notation fields
-    // e.g. players[0][name], players[0][jerseyNumber] — multer does NOT parse
-    // nested bracket notation, so req.body.players was always undefined on the
-    // backend. Sending as a single JSON string is the correct approach with multer.
     if (payload.players?.length) {
       formData.append("players", JSON.stringify(payload.players));
     }
-
     if (payload.logo) formData.append("logo", payload.logo);
-
     const { data } = await api.post(
       `/teams/register/${inviteCode}`,
       formData,
@@ -79,7 +74,7 @@ export const teamService = {
   },
 };
 
-function mapTeam(t: any): Team {
+export function mapTeam(t: any): Team {
   if (!t) return t;
   return {
     id: t._id ?? t.id,

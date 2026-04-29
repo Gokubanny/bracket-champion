@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   registerTeam,
   getTeamsByTournament,
+  getMyTeams,
   approveTeam,
   rejectTeam,
   getTeamById,
@@ -10,13 +11,17 @@ const {
 const { protect, restrictTo } = require("../middleware/auth.middleware");
 const upload = require("../middleware/upload.middleware");
 
-// Public - Register team with invite code (inviteCode in URL)
+// Public - Register team with invite code
 router.post("/register/:inviteCode", upload.single("logo"), registerTeam);
 
 // Get teams for tournament (public)
 router.get("/tournament/:tournamentId", getTeamsByTournament);
 
-// Get single team
+// IMPORTANT: /my-teams must be declared BEFORE /:teamId, otherwise Express
+// will treat the literal string "my-teams" as a teamId and hit getTeamById.
+router.get("/my-teams", protect, getMyTeams);
+
+// Get single team (public)
 router.get("/:teamId", getTeamById);
 
 // Admin only - Approve/Reject teams

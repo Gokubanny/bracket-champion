@@ -6,6 +6,10 @@ import { teamService } from "@/services/teamService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SportBadge from "@/components/ui/SportBadge";
@@ -14,7 +18,7 @@ import BracketView from "@/components/bracket/BracketView";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
 import ScoreEntryModal from "@/components/match/ScoreEntryModal";
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
-import { Copy, Users, Shield, AlertTriangle, Trophy } from "lucide-react";
+import { Copy, Users, Shield, AlertTriangle, Trophy, Pencil, Loader2, Image } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { TEAM_STATUS_COLORS } from "@/constants/sports";
@@ -41,6 +45,44 @@ const ManageTournament = () => {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
+  // ── Edit state ───────────────────────────────────────────────
+  const [editOpen, setEditOpen] = useState(false);
+  const [editBanner, setEditBanner] = useState<File | null>(null);
+  const [editBannerPreview, setEditBannerPreview] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    description: "",
+    startDate: "",
+    registrationDeadline: "",
+    visibility: "public" as "public" | "private",
+    estimatedMatchDuration: "",
+  });
+
+  const openEdit = () => {
+    if (!tournament) return;
+    // Pre-fill form with current tournament values
+    setEditForm({
+      name: tournament.name ?? "",
+      description: tournament.description ?? "",
+      startDate: tournament.startDate ? format(new Date(tournament.startDate), "yyyy-MM-dd") : "",
+      registrationDeadline: tournament.registrationDeadline ? format(new Date(tournament.registrationDeadline), "yyyy-MM-dd") : "",
+      visibility: (tournament.visibility as "public" | "private") ?? "public",
+      estimatedMatchDuration: tournament.estimatedMatchDuration ?? "",
+    });
+    setEditBanner(null);
+    setEditBannerPreview(null);
+    setEditOpen(true);
+  };
+
+  const handleEditBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditBanner(file);
+      setEditBannerPreview(URL.createObjectURL(file));
+    }
+  };
+
+  // ── Queries ──────────────────────────────────────────────────
   const { data: tournament, isLoading } = useQuery({
     queryKey: ["tournament", id],
     queryFn: () => tournamentService.getById(id!),
@@ -63,6 +105,22 @@ const ManageTournament = () => {
     queryKey: ["tournament-leaderboard", id],
     queryFn: () => tournamentService.getLeaderboard(id!),
     enabled: !!id,
+  });
+
+  // ── Mutations ────────────────────────────────────────────────
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      tournamentService.update(id!, {
+        ...editForm,
+        banner: editBanner ?? undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tournament", id] });
+      queryClient.invalidateQueries({ queryKey: ["tournaments"] });
+      toast.success("Tournament updated successfully");
+      setEditOpen(false);
+    },
+    onError: () => toast.error("Failed to update tournament"),
   });
 
   const approveMutation = useMutation({
@@ -114,6 +172,7 @@ const ManageTournament = () => {
   const filteredTeams = teams?.filter(t => teamFilter === "all" || t.status === teamFilter);
   const approvedCount = teams?.filter(t => t.status === "approved").length ?? 0;
   const canGenerateBracket = tournament?.status !== "active" && tournament?.status !== "completed" && approvedCount >= 2;
+  const canEdit = tournament?.status !== "active" && tournament?.status !== "completed" && tournament?.status !== "cancelled";
 
   if (isLoading) {
     return (
@@ -145,6 +204,12 @@ const ManageTournament = () => {
             <StatusBadge status={tournament.status as TournamentStatus} />
           </div>
         </div>
+        {/* Edit button — only shown when tournament is in a state that allows edits */}
+        {canEdit && (
+          <Button variant="outline" size="sm" onClick={openEdit}>
+            <Pencil className="h-4 w-4 mr-1" /> Edit Tournament
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue="overview">
@@ -165,6 +230,9 @@ const ManageTournament = () => {
                 <div><span className="text-muted-foreground">Team Slots:</span> <span className="ml-2">{tournament.teamSlots}</span></div>
                 <div><span className="text-muted-foreground">Teams Registered:</span> <span className="ml-2">{tournament.teamCount}</span></div>
                 <div><span className="text-muted-foreground">Visibility:</span> <span className="ml-2 capitalize">{tournament.visibility}</span></div>
+                {tournament.estimatedMatchDuration && (
+                  <div><span className="text-muted-foreground">Match Duration:</span> <span className="ml-2">{tournament.estimatedMatchDuration}</span></div>
+                )}
               </div>
               {tournament.description && <p className="text-sm text-muted-foreground">{tournament.description}</p>}
 
@@ -335,6 +403,139 @@ const ManageTournament = () => {
           }}
         />
       )}
+
+      {/* ── Edit Tournament Sheet ──────────────────────────────── */}
+      <Sheet open={editOpen} onOpenChange={setEditOpen}>
+        <SheetContent className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Edit Tournament</SheetTitle>
+          </SheetHeader>
+
+          <div className="mt-6 space-y-5">
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-name">Tournament Name</Label>
+              <Input
+                id="edit-name"
+                value={editForm.name}
+                onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="Tournament name"
+              />
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editForm.description}
+                onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Optional description"
+                rows={3}
+              />
+            </div>
+
+            {/* Start Date */}
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-startDate">Start Date</Label>
+              <Input
+                id="edit-startDate"
+                type="date"
+                value={editForm.startDate}
+                onChange={(e) => setEditForm(f => ({ ...f, startDate: e.target.value }))}
+              />
+            </div>
+
+            {/* Registration Deadline */}
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-deadline">Registration Deadline</Label>
+              <Input
+                id="edit-deadline"
+                type="date"
+                value={editForm.registrationDeadline}
+                onChange={(e) => setEditForm(f => ({ ...f, registrationDeadline: e.target.value }))}
+              />
+            </div>
+
+            {/* Estimated Match Duration */}
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-duration">Estimated Match Duration</Label>
+              <Input
+                id="edit-duration"
+                value={editForm.estimatedMatchDuration}
+                onChange={(e) => setEditForm(f => ({ ...f, estimatedMatchDuration: e.target.value }))}
+                placeholder="e.g. 90 minutes"
+              />
+            </div>
+
+            {/* Visibility */}
+            <div className="space-y-1.5">
+              <Label>Visibility</Label>
+              <Select
+                value={editForm.visibility}
+                onValueChange={(v) => setEditForm(f => ({ ...f, visibility: v as "public" | "private" }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Banner */}
+            <div className="space-y-1.5">
+              <Label>Banner Image</Label>
+              {editBannerPreview ? (
+                <div className="relative w-full h-28 rounded-lg overflow-hidden">
+                  <img src={editBannerPreview} alt="Banner preview" className="w-full h-full object-cover" />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="absolute top-2 right-2 h-6 px-2 text-xs"
+                    onClick={() => { setEditBanner(null); setEditBannerPreview(null); }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ) : tournament.bannerUrl ? (
+                <div className="relative w-full h-28 rounded-lg overflow-hidden">
+                  <img src={tournament.bannerUrl} alt="Current banner" className="w-full h-full object-cover opacity-60" />
+                  <label className="absolute inset-0 flex items-center justify-center cursor-pointer hover:bg-black/20 transition-colors">
+                    <span className="text-xs text-white bg-black/50 rounded px-2 py-1 flex items-center gap-1">
+                      <Image className="h-3 w-3" /> Replace banner
+                    </span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleEditBannerChange} />
+                  </label>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
+                  <Image className="h-5 w-5 text-muted-foreground mb-1" />
+                  <span className="text-xs text-muted-foreground">Upload banner</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleEditBannerChange} />
+                </label>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-2">
+              <Button
+                className="flex-1"
+                onClick={() => updateMutation.mutate()}
+                disabled={updateMutation.isPending || !editForm.name.trim()}
+              >
+                {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Save Changes
+              </Button>
+              <Button variant="outline" onClick={() => setEditOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
