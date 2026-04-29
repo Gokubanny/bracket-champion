@@ -108,7 +108,7 @@ const getTeamsByTournament = asyncHandler(async (req, res) => {
 
 // @desc    Get all teams the logged-in user reps
 // @route   GET /api/teams/my-teams
-// @access  Private (viewer/admin)
+// @access  Private
 const getMyTeams = asyncHandler(async (req, res) => {
   const teams = await Team.find({ repId: req.user._id })
     .populate("repId", "fullName email")
@@ -129,6 +129,37 @@ const getTeamById = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { team } });
 });
 
+// @desc    Update team name, color, and/or squad — called by the team rep
+// @route   PATCH /api/teams/:teamId/squad
+// @access  Private (rep of the team)
+const updateTeam = asyncHandler(async (req, res) => {
+  const team = await Team.findById(req.params.teamId);
+  if (!team) {
+    return res.status(404).json({ success: false, message: "Team not found" });
+  }
+
+  // Only the rep of this team can edit it
+  if (team.repId.toString() !== req.user._id.toString()) {
+    return res.status(403).json({ success: false, message: "Not authorized to edit this team" });
+  }
+
+  // Block edits once tournament is active or completed
+  const tournament = await Tournament.findById(team.tournamentId);
+  if (tournament && (tournament.status === "active" || tournament.status === "completed")) {
+    return res.status(400).json({ success: false, message: "Squad editing is locked. Tournament has started." });
+  }
+
+  // Apply whichever fields were sent — name, color, players are all optional
+  if (req.body.name !== undefined) team.name = req.body.name;
+  if (req.body.color !== undefined) team.color = req.body.color;
+  if (Array.isArray(req.body.players)) team.players = req.body.players;
+
+  await team.save();
+  await team.populate("repId", "fullName email");
+
+  res.json({ success: true, message: "Team updated successfully", data: { team } });
+});
+
 // @desc    Admin approve team
 // @route   PATCH /api/teams/:teamId/approve
 // @access  Admin
@@ -139,12 +170,9 @@ const approveTeam = asyncHandler(async (req, res) => {
   }
 
   const wasAlreadyApproved = team.status === "approved";
-
   team.status = "approved";
   await team.save();
 
-  // FIX: increment approvedTeamsCount on the tournament so the card
-  // fill/progress bar actually reflects reality. Guard against double-approving.
   if (!wasAlreadyApproved) {
     await Tournament.findByIdAndUpdate(team.tournamentId, {
       $inc: { approvedTeamsCount: 1 },
@@ -170,13 +198,10 @@ const rejectTeam = asyncHandler(async (req, res) => {
   }
 
   const wasApproved = team.status === "approved";
-
   team.status = "rejected";
   team.rejectionReason = reason;
   await team.save();
 
-  // FIX: if we're rejecting a previously approved team, decrement the count
-  // so the progress bar doesn't show phantom approved teams
   if (wasApproved) {
     await Tournament.findByIdAndUpdate(team.tournamentId, {
       $inc: { approvedTeamsCount: -1 },
@@ -196,7 +221,8 @@ module.exports = {
   registerTeam,
   getTeamsByTournament,
   getMyTeams,
+  getTeamById,
+  updateTeam,
   approveTeam,
   rejectTeam,
-  getTeamById,
 };
