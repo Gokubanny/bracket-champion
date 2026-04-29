@@ -77,7 +77,7 @@ const Navbar = () => {
           ) : (
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={() => navigate("/login")}>Login</Button>
-              <Button size="sm" onClick={() => navigate("/register")}>Sign Up</Button>
+              {/* <Button size="sm" onClick={() => navigate("/register")}>Sign Up</Button> */}
             </div>
           )}
         </div>
@@ -117,7 +117,7 @@ const Navbar = () => {
           ) : (
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" className="flex-1" onClick={() => { navigate("/login"); setMobileOpen(false); }}>Login</Button>
-              <Button size="sm" className="flex-1" onClick={() => { navigate("/register"); setMobileOpen(false); }}>Sign Up</Button>
+              {/* <Button size="sm" className="flex-1" onClick={() => { navigate("/register"); setMobileOpen(false); }}>Sign Up</Button> */}
             </div>
           )}
         </div>

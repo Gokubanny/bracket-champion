@@ -106,16 +106,16 @@ const LoginPage = () => {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full" disabled={loading}>
+                {/* <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   Sign In
-                </Button>
+                </Button> */}
               </form>
             </Form>
-            <p className="text-center text-sm text-muted-foreground mt-4">
+            {/* <p className="text-center text-sm text-muted-foreground mt-4">
               Need an admin account?{" "}
               <Link to="/register" className="text-primary hover:underline">Register</Link>
-            </p>
+            </p> */}
           </CardContent>
         </Card>
       </div>
