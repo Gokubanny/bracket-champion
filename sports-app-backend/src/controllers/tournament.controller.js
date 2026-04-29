@@ -5,6 +5,31 @@ const { asyncHandler } = require("../middleware/errorHandler");
 const { generateBracket, linkNextMatches } = require("../utils/bracketGenerator");
 const { emitToTournament } = require("../socket");
 
+// ── Helper: attach live approved team counts to an array of tournament docs ──
+// We run ONE aggregation for all tournaments at once (not N queries),
+// then merge the results in memory. This keeps it efficient even for large lists.
+const attachApprovedCounts = async (tournaments) => {
+  if (!tournaments.length) return [];
+
+  const ids = tournaments.map((t) => t._id);
+
+  const counts = await Team.aggregate([
+    { $match: { tournamentId: { $in: ids }, status: "approved" } },
+    { $group: { _id: "$tournamentId", count: { $sum: 1 } } },
+  ]);
+
+  const countMap = {};
+  counts.forEach(({ _id, count }) => {
+    countMap[_id.toString()] = count;
+  });
+
+  return tournaments.map((t) => {
+    const obj = t.toObject ? t.toObject() : { ...t };
+    obj.approvedTeamsCount = countMap[t._id.toString()] ?? 0;
+    return obj;
+  });
+};
+
 // @desc    Create tournament
 // @route   POST /api/tournaments
 // @access  Admin
@@ -43,9 +68,14 @@ const getTournaments = asyncHandler(async (req, res) => {
   if (sport) filter.sport = sport;
   if (search) filter.name = { $regex: search, $options: "i" };
 
-  const tournaments = await Tournament.find(filter)
+  const raw = await Tournament.find(filter)
     .populate("createdBy", "name email")
     .sort({ createdAt: -1 });
+
+  // FIX: compute live approved team counts instead of relying on the stored
+  // approvedTeamsCount field, which is 0 for any team approved before the
+  // increment logic was added and can drift out of sync over time.
+  const tournaments = await attachApprovedCounts(raw);
 
   res.json({
     success: true,
@@ -64,10 +94,13 @@ const getTournament = asyncHandler(async (req, res) => {
   const approvedTeams = teams.filter(t => t.status === "approved");
   const pendingTeams = teams.filter(t => t.status === "pending");
 
+  // Attach live count to this single tournament too
+  const [withCount] = await attachApprovedCounts([tournament]);
+
   res.json({
     success: true,
     data: {
-      tournament,
+      tournament: withCount,
       teams: {
         total: teams.length,
         approved: approvedTeams.length,
@@ -84,7 +117,10 @@ const getTournament = asyncHandler(async (req, res) => {
 const getTournamentByInviteCode = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findOne({ inviteCode: req.params.code });
   if (!tournament) return res.status(404).json({ success: false, message: "Invalid invite code." });
-  res.json({ success: true, data: { tournament } });
+
+  const [withCount] = await attachApprovedCounts([tournament]);
+
+  res.json({ success: true, data: { tournament: withCount } });
 });
 
 // @desc    Update tournament
@@ -236,7 +272,6 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   try {
     const userId = req.user?._id;
 
-    // Get all IDs for this admin once and reuse across all count queries
     const adminTournamentIds = await Tournament.find({ createdBy: userId }).distinct("_id");
 
     const [
@@ -244,7 +279,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       activeTournaments,
       completedTournaments,
       completedMatches,
-      pendingApprovals, // FIX: was Match.countDocuments({ createdBy: userId }) — Match has no createdBy field, always returned 0
+      pendingApprovals,
     ] = await Promise.all([
       Tournament.countDocuments({ createdBy: userId }),
       Tournament.countDocuments({ createdBy: userId, status: "active" }),
@@ -275,27 +310,20 @@ const getDashboardActivity = asyncHandler(async (req, res) => {
   try {
     const userId = req.user?._id;
 
-    // Scope everything to this admin's tournaments
     const adminTournamentIds = await Tournament.find({ createdBy: userId }).distinct("_id");
 
     const [recentTournaments, recentTeams, recentMatches] = await Promise.all([
-      // Sort by updatedAt so status changes (active, completed, cancelled) surface,
-      // not just the original creation order
       Tournament.find({ createdBy: userId })
         .sort({ updatedAt: -1 })
         .limit(10)
         .select("name sport status createdAt updatedAt"),
 
-      // NEW: team events were never queried — registrations, approvals, rejections
-      // all went completely untracked before this fix
       Team.find({ tournamentId: { $in: adminTournamentIds } })
         .sort({ updatedAt: -1 })
         .limit(15)
         .select("name status createdAt updatedAt tournamentId")
         .populate("tournamentId", "name"),
 
-      // FIX: was Match.find() with no scope — pulled any random matches from the DB.
-      // Now scoped to admin's tournaments, completed + non-bye only, sorted by confirmedAt
       Match.find({
         tournamentId: { $in: adminTournamentIds },
         status: "completed",
