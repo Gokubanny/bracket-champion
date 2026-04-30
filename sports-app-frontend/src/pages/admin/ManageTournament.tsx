@@ -18,7 +18,7 @@ import BracketView from "@/components/bracket/BracketView";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
 import ScoreEntryModal from "@/components/match/ScoreEntryModal";
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
-import { Copy, Users, Shield, AlertTriangle, Trophy, Pencil, Loader2, Image } from "lucide-react";
+import { Copy, Users, Shield, AlertTriangle, Trophy, Pencil, Loader2, Image, Swords, CheckCircle2, Clock, Minus } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { TEAM_STATUS_COLORS } from "@/constants/sports";
@@ -37,7 +37,106 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
+// ── Status pill for a match card ─────────────────────────────────────────────
+const MatchStatusPill = ({ status }: { status: Match["status"] }) => {
+  if (status === "completed")
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-400">
+        <CheckCircle2 className="h-3 w-3" /> Done
+      </span>
+    );
+  if (status === "in_progress")
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-yellow-400">
+        <Clock className="h-3 w-3" /> Live
+      </span>
+    );
+  if (status === "bye")
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+        <Minus className="h-3 w-3" /> Bye
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-400">
+      <Swords className="h-3 w-3" /> Pending
+    </span>
+  );
+};
+
+// ── Single match card for the Matches tab ─────────────────────────────────────
+interface MatchCardProps {
+  match: Match;
+  isAdminActive: boolean;
+  onMatchClick: (match: Match) => void;
+}
+
+const MatchCard = ({ match, isAdminActive, onMatchClick }: MatchCardProps) => {
+  // A match is clickable when the tournament is active, it's not a bye, and
+  // both team slots are filled (the teams have advanced from previous rounds).
+  const clickable =
+    isAdminActive &&
+    match.status !== "bye" &&
+    match.teamA != null &&
+    match.teamB != null;
+
+  const teamRow = (
+    team: Match["teamA"],
+    score: number | null | undefined,
+    isWinner: boolean
+  ) => (
+    <div className="flex items-center justify-between py-1.5 px-3">
+      <div className="flex items-center gap-2 min-w-0">
+        {team ? (
+          <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: team.color }} />
+        ) : (
+          <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-muted-foreground/30" />
+        )}
+        <span
+          className={cn(
+            "text-sm truncate",
+            isWinner ? "font-semibold text-yellow-400" : "text-foreground",
+            !team && "text-muted-foreground italic"
+          )}
+        >
+          {team?.name ?? "TBD"}
+        </span>
+      </div>
+      {score != null && (
+        <span className={cn("text-sm font-bold tabular-nums ml-2", isWinner ? "text-yellow-400" : "text-muted-foreground")}>
+          {score}
+        </span>
+      )}
+    </div>
+  );
+
+  return (
+    <Card
+      className={cn(
+        "glass-card overflow-hidden transition-all duration-200",
+        clickable && "cursor-pointer hover:border-primary/60 hover:shadow-md"
+      )}
+      onClick={() => clickable && onMatchClick(match)}
+    >
+      <CardContent className="p-0">
+        <div className="divide-y divide-border/50">
+          {teamRow(match.teamA, match.scoreA, !!match.winnerId && match.teamA?.id === match.winnerId)}
+          {teamRow(match.teamB, match.scoreB, !!match.winnerId && match.teamB?.id === match.winnerId)}
+        </div>
+        <div className="px-3 py-1.5 border-t border-border/30 bg-muted/20 flex items-center justify-between">
+          <MatchStatusPill status={match.status} />
+          {clickable && (
+            <span className="text-[10px] text-muted-foreground">Click to enter score</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+// ── Main component ────────────────────────────────────────────────────────────
 const ManageTournament = () => {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -60,7 +159,6 @@ const ManageTournament = () => {
 
   const openEdit = () => {
     if (!tournament) return;
-    // Pre-fill form with current tournament values
     setEditForm({
       name: tournament.name ?? "",
       description: tournament.description ?? "",
@@ -169,10 +267,20 @@ const ManageTournament = () => {
     }
   };
 
+  // Called by ScoreEntryModal after a result is confirmed.
+  // refetchQueries forces an immediate network request (not just a stale mark)
+  // so the winning team appears in the next round slot of the bracket straight away.
+  const handleScoreSuccess = () => {
+    queryClient.refetchQueries({ queryKey: ["tournament-bracket", id] });
+    queryClient.refetchQueries({ queryKey: ["tournament-leaderboard", id] });
+    setSelectedMatch(null);
+  };
+
   const filteredTeams = teams?.filter(t => teamFilter === "all" || t.status === teamFilter);
   const approvedCount = teams?.filter(t => t.status === "approved").length ?? 0;
   const canGenerateBracket = tournament?.status !== "active" && tournament?.status !== "completed" && approvedCount >= 2;
   const canEdit = tournament?.status !== "active" && tournament?.status !== "completed" && tournament?.status !== "cancelled";
+  const isAdminActive = tournament?.status === "active";
 
   if (isLoading) {
     return (
@@ -204,7 +312,6 @@ const ManageTournament = () => {
             <StatusBadge status={tournament.status as TournamentStatus} />
           </div>
         </div>
-        {/* Edit button — only shown when tournament is in a state that allows edits */}
         {canEdit && (
           <Button variant="outline" size="sm" onClick={openEdit}>
             <Pencil className="h-4 w-4 mr-1" /> Edit Tournament
@@ -213,13 +320,16 @@ const ManageTournament = () => {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-4">
+        {/* 5-column grid — added "matches" tab */}
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
+          <TabsTrigger value="matches">Matches</TabsTrigger>
           <TabsTrigger value="bracket">Bracket</TabsTrigger>
           <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
         </TabsList>
 
+        {/* ── Overview ── */}
         <TabsContent value="overview" className="space-y-4">
           <Card className="glass-card">
             <CardHeader><CardTitle>Tournament Details</CardTitle></CardHeader>
@@ -256,6 +366,7 @@ const ManageTournament = () => {
               <div className="flex gap-2 flex-wrap">
                 {canGenerateBracket && (
                   <Button onClick={() => generateBracketMutation.mutate()} disabled={generateBracketMutation.isPending}>
+                    {generateBracketMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                     Generate Bracket
                   </Button>
                 )}
@@ -290,6 +401,7 @@ const ManageTournament = () => {
           </Card>
         </TabsContent>
 
+        {/* ── Teams ── */}
         <TabsContent value="teams" className="space-y-4">
           <div className="flex gap-2">
             {["all", "pending", "approved", "rejected"].map((status) => (
@@ -369,12 +481,65 @@ const ManageTournament = () => {
           </Sheet>
         </TabsContent>
 
+        {/* ── Matches ─────────────────────────────────────────────────────────
+            All matches grouped by round. Pending matches with both teams filled
+            are clickable to open ScoreEntryModal. After confirming, the bracket
+            is force-refetched so the winner immediately moves to the next slot.
+        ──────────────────────────────────────────────────────────────────────── */}
+        <TabsContent value="matches" className="space-y-6">
+          {bracket ? (
+            bracket.rounds.map((roundMatches, ri) => {
+              const roundLabel =
+                ri === bracket.totalRounds - 1
+                  ? "Final"
+                  : ri === bracket.totalRounds - 2
+                  ? "Semifinals"
+                  : `Round ${ri + 1}`;
+
+              const pendingCount = roundMatches.filter(
+                (m) => m.status !== "completed" && m.status !== "bye"
+              ).length;
+
+              return (
+                <div key={ri}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <h3 className="text-sm font-semibold">{roundLabel}</h3>
+                    {pendingCount > 0 && isAdminActive && (
+                      <Badge variant="secondary" className="text-[10px] text-blue-400 border-blue-400/30">
+                        {pendingCount} pending
+                      </Badge>
+                    )}
+                    <div className="flex-1 h-px bg-border/40" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {roundMatches.map((match) => (
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                        isAdminActive={isAdminActive}
+                        onMatchClick={setSelectedMatch}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <EmptyState
+              icon={<Swords className="h-8 w-8" />}
+              title="No matches yet"
+              description="Generate the bracket from the Overview tab to create matches."
+            />
+          )}
+        </TabsContent>
+
+        {/* ── Bracket ── */}
         <TabsContent value="bracket">
           {bracket ? (
             <BracketView
               bracket={bracket}
               isAdmin={true}
-              isActive={tournament.status === "active"}
+              isActive={isAdminActive}
               onMatchClick={(match) => setSelectedMatch(match)}
             />
           ) : (
@@ -382,6 +547,7 @@ const ManageTournament = () => {
           )}
         </TabsContent>
 
+        {/* ── Leaderboard ── */}
         <TabsContent value="leaderboard">
           {leaderboard && leaderboard.length > 0 ? (
             <LeaderboardTable entries={leaderboard} sport={tournament.sport as SportType} />
@@ -391,20 +557,19 @@ const ManageTournament = () => {
         </TabsContent>
       </Tabs>
 
+      {/* ScoreEntryModal — shared by both the Bracket and Matches tabs.
+          handleScoreSuccess uses refetchQueries so the bracket re-renders
+          immediately with the winner in the correct next-round slot.          */}
       {selectedMatch && (
         <ScoreEntryModal
           match={selectedMatch}
           open={!!selectedMatch}
           onClose={() => setSelectedMatch(null)}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["tournament-bracket", id] });
-            queryClient.invalidateQueries({ queryKey: ["tournament-leaderboard", id] });
-            setSelectedMatch(null);
-          }}
+          onSuccess={handleScoreSuccess}
         />
       )}
 
-      {/* ── Edit Tournament Sheet ──────────────────────────────── */}
+      {/* ── Edit Tournament Sheet ────────────────────────────────────────── */}
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
         <SheetContent className="overflow-y-auto">
           <SheetHeader>
@@ -412,7 +577,6 @@ const ManageTournament = () => {
           </SheetHeader>
 
           <div className="mt-6 space-y-5">
-            {/* Name */}
             <div className="space-y-1.5">
               <Label htmlFor="edit-name">Tournament Name</Label>
               <Input
@@ -423,7 +587,6 @@ const ManageTournament = () => {
               />
             </div>
 
-            {/* Description */}
             <div className="space-y-1.5">
               <Label htmlFor="edit-description">Description</Label>
               <Textarea
@@ -435,7 +598,6 @@ const ManageTournament = () => {
               />
             </div>
 
-            {/* Start Date */}
             <div className="space-y-1.5">
               <Label htmlFor="edit-startDate">Start Date</Label>
               <Input
@@ -446,7 +608,6 @@ const ManageTournament = () => {
               />
             </div>
 
-            {/* Registration Deadline */}
             <div className="space-y-1.5">
               <Label htmlFor="edit-deadline">Registration Deadline</Label>
               <Input
@@ -457,7 +618,6 @@ const ManageTournament = () => {
               />
             </div>
 
-            {/* Estimated Match Duration */}
             <div className="space-y-1.5">
               <Label htmlFor="edit-duration">Estimated Match Duration</Label>
               <Input
@@ -468,7 +628,6 @@ const ManageTournament = () => {
               />
             </div>
 
-            {/* Visibility */}
             <div className="space-y-1.5">
               <Label>Visibility</Label>
               <Select
@@ -485,7 +644,6 @@ const ManageTournament = () => {
               </Select>
             </div>
 
-            {/* Banner */}
             <div className="space-y-1.5">
               <Label>Banner Image</Label>
               {editBannerPreview ? (
@@ -519,7 +677,6 @@ const ManageTournament = () => {
               )}
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2 pt-2">
               <Button
                 className="flex-1"
