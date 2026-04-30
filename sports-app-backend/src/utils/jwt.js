@@ -10,7 +10,10 @@ const sendTokenCookie = (res, token) => {
   res.cookie("token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    // "lax" allows the cookie to be sent on cross-origin navigations (e.g. phone
+    // on local network, different subdomains on Render). "strict" silently drops
+    // the cookie whenever the origin doesn't exactly match, which breaks mobile login.
+    sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };

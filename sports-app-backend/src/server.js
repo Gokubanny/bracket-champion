@@ -36,10 +36,16 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
+      // In development, allow all origins (covers phone on local network via 192.168.x.x)
+      if (process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
+
+      // In production, enforce the allow-list
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("CORS not allowed"));
+        callback(new Error(`CORS not allowed for origin: ${origin}`));
       }
     },
     credentials: true,
@@ -109,6 +115,7 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 API: http://localhost:${PORT}/api`);
   console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
+  console.log(`🌐 CORS mode: ${process.env.NODE_ENV === "production" ? "strict (allow-list)" : "open (development)"}`);
 });
 
 module.exports = app;
