@@ -19,33 +19,48 @@ const GOLD_COLOR = "hsl(45, 93%, 47%)";
 const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, onMatchClick }) => {
   const { rounds, totalRounds } = bracket;
 
-  const getMatchY = (roundIndex: number, matchIndex: number): number => {
-    const matchesInRound = rounds[roundIndex]?.length ?? 1;
+  // ri = round index (0-based), mi = match-within-round index (0-based).
+  // These come from the loop below and are ALWAYS correct.
+  // Never use match.round or match.matchNumber for layout — those are globally
+  // sequential numbers from the DB (after the -1 offset in mapMatch) and will
+  // produce wrong y positions for rounds 2+.
+  const getMatchY = (ri: number, mi: number): number => {
+    const matchesInRound = rounds[ri]?.length ?? 1;
     const totalH = matchesInRound * MATCH_HEIGHT + (matchesInRound - 1) * MATCH_GAP_Y;
-    const firstRoundTotal = (rounds[0]?.length ?? 1) * MATCH_HEIGHT + ((rounds[0]?.length ?? 1) - 1) * MATCH_GAP_Y;
+    const firstRoundTotal =
+      (rounds[0]?.length ?? 1) * MATCH_HEIGHT +
+      ((rounds[0]?.length ?? 1) - 1) * MATCH_GAP_Y;
     const offsetY = (firstRoundTotal - totalH) / 2;
-    return offsetY + matchIndex * (MATCH_HEIGHT + MATCH_GAP_Y);
+    return offsetY + mi * (MATCH_HEIGHT + MATCH_GAP_Y);
   };
 
-  const getMatchX = (roundIndex: number): number => {
-    return roundIndex * (MATCH_WIDTH + ROUND_GAP_X);
-  };
+  const getMatchX = (ri: number): number => ri * (MATCH_WIDTH + ROUND_GAP_X);
 
   const PAD = 30;
   const totalWidth = totalRounds * (MATCH_WIDTH + ROUND_GAP_X) - ROUND_GAP_X + PAD * 2;
   const firstRoundMatches = rounds[0]?.length ?? 1;
-  const totalHeight = firstRoundMatches * MATCH_HEIGHT + (firstRoundMatches - 1) * MATCH_GAP_Y + PAD * 2;
+  const totalHeight =
+    firstRoundMatches * MATCH_HEIGHT +
+    (firstRoundMatches - 1) * MATCH_GAP_Y +
+    PAD * 2;
 
-  const renderTeamRow = (match: Match, team: Match["teamA"], score: number | null | undefined, isTop: boolean) => {
-    const isWinner = team && match.winnerId === team.id;
-    const x = getMatchX(match.round) + PAD;
-    const y = getMatchY(match.round, match.matchNumber) + PAD;
+  // FIX: accepts ri/mi (loop indices) instead of reading match.round/matchNumber.
+  const renderTeamRow = (
+    ri: number,
+    mi: number,
+    match: Match,
+    team: Match["teamA"],
+    score: number | null | undefined,
+    isTop: boolean
+  ) => {
+    const isWinner = !!(team && match.winnerId && match.winnerId === team.id);
+    const x = getMatchX(ri) + PAD;
+    const y = getMatchY(ri, mi) + PAD;
     const rowY = isTop ? y : y + MATCH_HEIGHT / 2;
     const textY = rowY + MATCH_HEIGHT / 4;
 
     return (
       <>
-        {/* Winner gold left border */}
         {isWinner && (
           <rect
             x={x}
@@ -57,7 +72,6 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
             className="glow-gold"
           />
         )}
-        {/* Team color dot */}
         {team && (
           <circle
             cx={x + 14}
@@ -67,7 +81,6 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
             opacity={0.8}
           />
         )}
-        {/* Team name */}
         <text
           x={x + 26}
           y={textY + 4}
@@ -77,7 +90,6 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
         >
           {team?.name ?? "TBD"}
         </text>
-        {/* Score */}
         {score != null && (
           <text
             x={x + MATCH_WIDTH - 14}
@@ -97,15 +109,16 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
   return (
     <div className="overflow-x-auto scrollbar-thin pb-4">
       <svg width={totalWidth} height={totalHeight} className="min-w-fit">
-        {/* Connector lines */}
+
+        {/* Connector lines — use loop ri/mi for positions */}
         {rounds.map((round, ri) =>
           ri < totalRounds - 1 &&
           round.map((match, mi) => {
             const x1 = getMatchX(ri) + MATCH_WIDTH + PAD;
             const y1 = getMatchY(ri, mi) + MATCH_HEIGHT / 2 + PAD;
-            const nextMatchIndex = Math.floor(mi / 2);
+            const nextMi = Math.floor(mi / 2);
             const x2 = getMatchX(ri + 1) + PAD;
-            const y2 = getMatchY(ri + 1, nextMatchIndex) + MATCH_HEIGHT / 2 + PAD;
+            const y2 = getMatchY(ri + 1, nextMi) + MATCH_HEIGHT / 2 + PAD;
             const midX = (x1 + x2) / 2;
             const isWinnerPath = match.winnerId != null;
 
@@ -124,7 +137,7 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
           })
         )}
 
-        {/* Match nodes by round column */}
+        {/* Match cards — ri/mi passed everywhere */}
         {rounds.map((round, ri) => (
           <motion.g
             key={`round-${ri}`}
@@ -137,7 +150,11 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
               const y = getMatchY(ri, mi) + PAD;
               const isBye = match.status === "bye";
               const isCompleted = match.status === "completed";
-              const clickable = isAdmin && isActive && match.status !== "bye" && match.teamA && match.teamB;
+              const clickable =
+                isAdmin && isActive &&
+                match.status !== "bye" &&
+                match.teamA != null &&
+                match.teamB != null;
 
               return (
                 <motion.g
@@ -154,7 +171,13 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
                     height={MATCH_HEIGHT}
                     rx={10}
                     fill={isBye ? "hsl(var(--muted) / 0.2)" : "hsl(var(--card))"}
-                    stroke={isCompleted ? "hsl(var(--primary) / 0.4)" : isBye ? "hsl(var(--border) / 0.3)" : "hsl(var(--border))"}
+                    stroke={
+                      isCompleted
+                        ? "hsl(var(--primary) / 0.4)"
+                        : isBye
+                        ? "hsl(var(--border) / 0.3)"
+                        : "hsl(var(--border))"
+                    }
                     strokeWidth={1}
                     strokeDasharray={isBye ? "4 3" : undefined}
                     opacity={isBye ? 0.4 : 1}
@@ -174,8 +197,7 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
                     </text>
                   ) : (
                     <>
-                      {renderTeamRow(match, match.teamA, match.scoreA, true)}
-                      {/* Divider */}
+                      {renderTeamRow(ri, mi, match, match.teamA, match.scoreA, true)}
                       <line
                         x1={x + 10}
                         y1={y + MATCH_HEIGHT / 2}
@@ -184,11 +206,11 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
                         stroke="hsl(var(--border))"
                         strokeWidth={0.5}
                       />
-                      {renderTeamRow(match, match.teamB, match.scoreB, false)}
+                      {renderTeamRow(ri, mi, match, match.teamB, match.scoreB, false)}
                     </>
                   )}
 
-                  {/* Round label on first match */}
+                  {/* Round label on first match of each column */}
                   {mi === 0 && (
                     <text
                       x={x + MATCH_WIDTH / 2}
@@ -198,7 +220,11 @@ const BracketView: React.FC<BracketViewProps> = ({ bracket, isAdmin, isActive, o
                       fontSize={10}
                       fontWeight="500"
                     >
-                      {ri === totalRounds - 1 ? "Final" : ri === totalRounds - 2 ? "Semifinal" : `Round ${ri + 1}`}
+                      {ri === totalRounds - 1
+                        ? "Final"
+                        : ri === totalRounds - 2
+                        ? "Semifinal"
+                        : `Round ${ri + 1}`}
                     </text>
                   )}
                 </motion.g>
