@@ -13,7 +13,7 @@ interface MatchDetailModalProps {
   onClose: () => void;
 }
 
-const EVENT_CONFIG: Record
+const EVENT_CONFIG: Record<
   MatchEventType,
   { emoji: string; label: string; color: string; bg: string }
 > = {
