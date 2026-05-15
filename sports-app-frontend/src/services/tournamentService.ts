@@ -286,7 +286,7 @@ function buildBracketData(matches: any[]): BracketData {
 }
 
 function mapMatch(m: any) {
-  const mapTeam = (side: any) => {
+  const mapTeamSide = (side: any) => {
     if (!side?.teamId) return null;
     const t = side.teamId;
     return {
@@ -302,13 +302,27 @@ function mapMatch(m: any) {
     tournamentId: m.tournamentId,
     round: m.round - 1,
     matchNumber: m.matchNumber - 1,
-    teamA: mapTeam(m.teamA),
-    teamB: mapTeam(m.teamB),
+    teamA: mapTeamSide(m.teamA),
+    teamB: mapTeamSide(m.teamB),
     scoreA: m.teamA?.score ?? null,
     scoreB: m.teamB?.score ?? null,
     winnerId: m.winnerId?._id ?? m.winnerId ?? null,
-    status: m.isBye ? "bye" : m.status === "completed" ? "completed" : m.status === "ongoing" ? "in_progress" : "upcoming",
+    status: m.isBye
+      ? "bye"
+      : m.status === "completed"
+      ? "completed"
+      : m.status === "ongoing"
+      ? "in_progress"
+      : "upcoming",
     nextMatchId: m.nextMatchId ?? null,
     scheduledDate: m.scheduledDate ?? null,
+    // ── Feature 2 ──
+    events: (m.events ?? []).map((e: any) => ({
+      id: e._id ?? e.id,
+      type: e.type,
+      player: e.player,
+      team: e.team,
+      minute: e.minute,
+    })),
   };
 }

@@ -1,14 +1,20 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { matchService } from "@/services/matchService";
-import type { Match } from "@/types";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import type { Match, MatchEvent } from "@/types";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Loader2, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { useSound } from "@/context/SoundContext";
+import MatchEventLogger from "./MatchEventLogger";
 
 interface ScoreEntryModalProps {
   match: Match;
@@ -17,9 +23,16 @@ interface ScoreEntryModalProps {
   onSuccess: () => void;
 }
 
-const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({ match, open, onClose, onSuccess }) => {
+const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
+  match,
+  open,
+  onClose,
+  onSuccess,
+}) => {
   const [scoreA, setScoreA] = useState<string>(match.scoreA?.toString() ?? "");
   const [scoreB, setScoreB] = useState<string>(match.scoreB?.toString() ?? "");
+  const [events, setEvents] = useState<MatchEvent[]>(match.events ?? []);
+
   const isEdit = match.status === "completed";
   const { play } = useSound();
 
@@ -28,8 +41,8 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({ match, open, onClose,
       const a = parseInt(scoreA);
       const b = parseInt(scoreB);
       return isEdit
-        ? matchService.editScore(match.id, a, b)
-        : matchService.submitScore(match.id, a, b);
+        ? matchService.editScore(match.id, a, b, events)
+        : matchService.submitScore(match.id, a, b, events);
     },
     onSuccess: () => {
       toast.success(isEdit ? "Result updated!" : "Result confirmed!");
@@ -37,28 +50,45 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({ match, open, onClose,
       setTimeout(() => play("cheer", { volume: 0.3 }), 250);
       onSuccess();
     },
-    onError: () => toast.error("Failed to submit score"),
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Failed to submit score");
+    },
   });
 
   const aNum = parseInt(scoreA);
   const bNum = parseInt(scoreB);
-  const bothFilled = scoreA !== "" && scoreB !== "" && !isNaN(aNum) && !isNaN(bNum);
+  const bothFilled =
+    scoreA !== "" && scoreB !== "" && !isNaN(aNum) && !isNaN(bNum);
+
   const previewWinner = bothFilled
-    ? aNum > bNum ? match.teamA?.name : bNum > aNum ? match.teamB?.name : "Draw"
+    ? aNum > bNum
+      ? match.teamA?.name
+      : bNum > aNum
+      ? match.teamB?.name
+      : "Draw — not allowed"
     : null;
+
+  const isDraw = bothFilled && aNum === bNum;
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent className="sm:max-w-md">
+      <SheetContent className="sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{isEdit ? "Edit Result" : "Enter Score"}</SheetTitle>
         </SheetHeader>
+
         <div className="mt-6 space-y-6">
+          {/* Match meta */}
           <div className="text-sm text-muted-foreground">
-            <p>Round {match.round} • Match {match.matchNumber}</p>
-            {match.scheduledDate && <p>{new Date(match.scheduledDate).toLocaleDateString()}</p>}
+            <p>
+              Round {match.round + 1} · Match {match.matchNumber + 1}
+            </p>
+            {match.scheduledDate && (
+              <p>{new Date(match.scheduledDate).toLocaleDateString()}</p>
+            )}
           </div>
 
+          {/* Score inputs */}
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>{match.teamA?.name ?? "Team A"}</Label>
@@ -71,7 +101,9 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({ match, open, onClose,
                 className="text-center text-lg font-bold"
               />
             </div>
-            <div className="text-center text-sm text-muted-foreground font-medium">VS</div>
+            <div className="text-center text-sm text-muted-foreground font-medium">
+              VS
+            </div>
             <div className="space-y-2">
               <Label>{match.teamB?.name ?? "Team B"}</Label>
               <Input
@@ -85,19 +117,44 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({ match, open, onClose,
             </div>
           </div>
 
+          {/* Winner preview */}
           {previewWinner && (
-            <div className="bg-primary/10 rounded-lg p-3 flex items-center gap-2 text-sm">
-              <Trophy className="h-4 w-4 text-primary" />
-              <span>Winner: <strong>{previewWinner}</strong></span>
+            <div
+              className={`rounded-lg p-3 flex items-center gap-2 text-sm ${
+                isDraw
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-primary/10"
+              }`}
+            >
+              <Trophy className="h-4 w-4 text-primary shrink-0" />
+              <span>
+                {isDraw ? "⚠️ Draw — please enter a different result" : (
+                  <>Winner: <strong>{previewWinner}</strong></>
+                )}
+              </span>
             </div>
           )}
 
+          {/* Divider */}
+          <div className="border-t border-border" />
+
+          {/* Event logger */}
+          <MatchEventLogger
+            events={events}
+            onChange={setEvents}
+            teamAName={match.teamA?.name ?? "Team A"}
+            teamBName={match.teamB?.name ?? "Team B"}
+          />
+
+          {/* Submit */}
           <Button
             className="w-full"
-            disabled={!bothFilled || mutation.isPending}
+            disabled={!bothFilled || isDraw || mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            {mutation.isPending && (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            )}
             {isEdit ? "Update Result" : "Confirm Result"}
           </Button>
         </div>

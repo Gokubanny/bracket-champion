@@ -17,7 +17,7 @@ const getMatchesByTournament = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { matches } });
 });
 
-// @desc    Get a single match
+// @desc    Get a single match (with events)
 // @route   GET /api/matches/:id
 // @access  Public
 const getMatch = asyncHandler(async (req, res) => {
@@ -30,11 +30,11 @@ const getMatch = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { match } });
 });
 
-// @desc    Enter scores for a match (admin preview — not confirmed yet)
+// @desc    Enter scores (and optional events) — preview stage
 // @route   PATCH /api/matches/:id/score
 // @access  Admin
 const enterScore = asyncHandler(async (req, res) => {
-  const { scoreA, scoreB } = req.body;
+  const { scoreA, scoreB, events } = req.body;
 
   if (scoreA === undefined || scoreB === undefined) {
     return res.status(400).json({ success: false, message: "Both scores are required." });
@@ -56,14 +56,20 @@ const enterScore = asyncHandler(async (req, res) => {
   match.teamA.score = Number(scoreA);
   match.teamB.score = Number(scoreB);
   match.status = "ongoing";
+
+  // Save events at preview stage if provided
+  if (Array.isArray(events)) {
+    match.events = events;
+  }
+
   await match.save();
 
-  // Determine projected winner for preview
-  const projectedWinner = scoreA > scoreB
-    ? match.teamA.teamId
-    : scoreB > scoreA
-    ? match.teamB.teamId
-    : null;
+  const projectedWinner =
+    scoreA > scoreB
+      ? match.teamA.teamId
+      : scoreB > scoreA
+      ? match.teamB.teamId
+      : null;
 
   res.json({
     success: true,
@@ -82,19 +88,29 @@ const confirmResult = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findOne({ _id: match.tournamentId, createdBy: req.user._id });
   if (!tournament) return res.status(403).json({ success: false, message: "Not authorized." });
 
-  const { scoreA, scoreB } = match.teamA.score !== null
-    ? { scoreA: match.teamA.score, scoreB: match.teamB.score }
-    : req.body;
+  const scoreA =
+    match.teamA.score !== null ? match.teamA.score : req.body.scoreA;
+  const scoreB =
+    match.teamB.score !== null ? match.teamB.score : req.body.scoreB;
 
   if (scoreA === undefined || scoreB === undefined) {
     return res.status(400).json({ success: false, message: "Scores must be entered before confirming." });
   }
 
   if (Number(scoreA) === Number(scoreB)) {
-    return res.status(400).json({ success: false, message: "Draws are not allowed in elimination. Please enter a valid result." });
+    return res.status(400).json({
+      success: false,
+      message: "Draws are not allowed in elimination. Please enter a valid result.",
+    });
   }
 
-  const winnerId = Number(scoreA) > Number(scoreB) ? match.teamA.teamId : match.teamB.teamId;
+  // Accept events sent at confirm time (overrides anything saved at score stage)
+  if (Array.isArray(req.body.events)) {
+    match.events = req.body.events;
+  }
+
+  const winnerId =
+    Number(scoreA) > Number(scoreB) ? match.teamA.teamId : match.teamB.teamId;
 
   match.teamA.score = Number(scoreA);
   match.teamB.score = Number(scoreB);
@@ -107,8 +123,6 @@ const confirmResult = asyncHandler(async (req, res) => {
   if (match.nextMatchId) {
     const nextMatch = await Match.findById(match.nextMatchId);
     if (nextMatch) {
-      // Find which slot this match feeds into
-      // We determine by match number order: even index → teamA, odd index → teamB
       const siblingMatches = await Match.find({
         tournamentId: match.tournamentId,
         round: match.round,
@@ -125,7 +139,6 @@ const confirmResult = asyncHandler(async (req, res) => {
         nextMatch.teamB.teamId = winnerId;
       }
 
-      // Check if next match now has both teams → mark as pending/ready
       if (nextMatch.teamA.teamId && nextMatch.teamB.teamId) {
         nextMatch.status = "pending";
       }
@@ -134,7 +147,7 @@ const confirmResult = asyncHandler(async (req, res) => {
     }
   }
 
-  // Check if tournament is over (no more pending matches)
+  // Check if tournament is over
   const pendingMatches = await Match.countDocuments({
     tournamentId: tournament._id,
     status: { $in: ["pending", "ongoing"] },
@@ -150,10 +163,8 @@ const confirmResult = asyncHandler(async (req, res) => {
     });
   }
 
-  // Recompute leaderboard
   const leaderboard = await computeLeaderboard(tournament._id, tournament.sport);
 
-  // Broadcast live update
   emitToTournament(tournament._id.toString(), "match:resultConfirmed", {
     matchId: match._id,
     scoreA: match.teamA.score,
@@ -174,7 +185,7 @@ const confirmResult = asyncHandler(async (req, res) => {
 // @route   PATCH /api/matches/:id/edit
 // @access  Admin
 const editResult = asyncHandler(async (req, res) => {
-  const { scoreA, scoreB } = req.body;
+  const { scoreA, scoreB, events } = req.body;
 
   if (scoreA === undefined || scoreB === undefined) {
     return res.status(400).json({ success: false, message: "Both scores are required." });
@@ -190,7 +201,6 @@ const editResult = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "Match is not completed yet." });
   }
 
-  // Check that next round match hasn't started yet
   if (match.nextMatchId) {
     const nextMatch = await Match.findById(match.nextMatchId);
     if (nextMatch && nextMatch.status !== "pending") {
@@ -200,7 +210,6 @@ const editResult = asyncHandler(async (req, res) => {
       });
     }
 
-    // Revert winner from next match
     const oldWinnerId = match.winnerId?.toString();
     if (nextMatch) {
       if (nextMatch.teamA.teamId?.toString() === oldWinnerId) {
@@ -212,14 +221,19 @@ const editResult = asyncHandler(async (req, res) => {
     }
   }
 
-  // Apply new scores
   match.teamA.score = Number(scoreA);
   match.teamB.score = Number(scoreB);
-  match.winnerId = Number(scoreA) > Number(scoreB) ? match.teamA.teamId : match.teamB.teamId;
+  match.winnerId =
+    Number(scoreA) > Number(scoreB) ? match.teamA.teamId : match.teamB.teamId;
   match.confirmedAt = new Date();
+
+  // Update events if provided
+  if (Array.isArray(events)) {
+    match.events = events;
+  }
+
   await match.save();
 
-  // Re-advance new winner
   if (match.nextMatchId) {
     const nextMatch = await Match.findById(match.nextMatchId);
     if (nextMatch) {
@@ -255,4 +269,41 @@ const editResult = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Result updated successfully.", data: { match } });
 });
 
-module.exports = { getMatchesByTournament, getMatch, enterScore, confirmResult, editResult };
+// @desc    Update events on a completed match independently
+// @route   PATCH /api/matches/:id/events
+// @access  Admin
+const updateEvents = asyncHandler(async (req, res) => {
+  const { events } = req.body;
+
+  if (!Array.isArray(events)) {
+    return res.status(400).json({ success: false, message: "events must be an array." });
+  }
+
+  const match = await Match.findById(req.params.id)
+    .populate("teamA.teamId", "name logo color")
+    .populate("teamB.teamId", "name logo color");
+
+  if (!match) return res.status(404).json({ success: false, message: "Match not found." });
+
+  const tournament = await Tournament.findOne({ _id: match.tournamentId, createdBy: req.user._id });
+  if (!tournament) return res.status(403).json({ success: false, message: "Not authorized." });
+
+  match.events = events;
+  await match.save();
+
+  emitToTournament(tournament._id.toString(), "match:eventsUpdated", {
+    matchId: match._id,
+    events: match.events,
+  });
+
+  res.json({ success: true, message: "Match events updated.", data: { match } });
+});
+
+module.exports = {
+  getMatchesByTournament,
+  getMatch,
+  enterScore,
+  confirmResult,
+  editResult,
+  updateEvents,
+};

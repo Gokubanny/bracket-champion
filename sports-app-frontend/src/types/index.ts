@@ -47,19 +47,31 @@ export interface Player {
   position: string;
 }
 
+// ── Feature 2: Match Events ──────────────────────────────────────────────────
+export type MatchEventType = "goal" | "yellow_card" | "red_card" | "assist";
+
+export interface MatchEvent {
+  id?: string;       // _id from MongoDB (present on saved events)
+  type: MatchEventType;
+  player: string;
+  team: "teamA" | "teamB";
+  minute: number;
+}
+
 export interface Match {
   id: string;
   tournamentId: string;
   round: number;
   matchNumber: number;
-  teamA?: Team | null;
-  teamB?: Team | null;
+  teamA?: { id: string; name: string; color: string; logo?: string } | null;
+  teamB?: { id: string; name: string; color: string; logo?: string } | null;
   scoreA?: number | null;
   scoreB?: number | null;
   winnerId?: string | null;
   status: "upcoming" | "in_progress" | "completed" | "bye";
   scheduledDate?: string;
   nextMatchId?: string | null;
+  events?: MatchEvent[];
 }
 
 export interface BracketData {
@@ -79,7 +91,13 @@ export interface LeaderboardEntry {
 
 export interface Activity {
   id: string;
-  type: "tournament_created" | "team_approved" | "team_rejected" | "result_confirmed" | "tournament_started" | "tournament_completed";
+  type:
+    | "tournament_created"
+    | "team_approved"
+    | "team_rejected"
+    | "result_confirmed"
+    | "tournament_started"
+    | "tournament_completed";
   message: string;
   timestamp: string;
   tournamentId?: string;
