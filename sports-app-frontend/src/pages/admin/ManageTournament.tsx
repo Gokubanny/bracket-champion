@@ -9,19 +9,38 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SportBadge from "@/components/ui/SportBadge";
 import EmptyState from "@/components/ui/EmptyState";
 import BracketView from "@/components/bracket/BracketView";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
+import TopScorersTable from "@/components/leaderboard/TopScorersTable";
 import ScoreEntryModal from "@/components/match/ScoreEntryModal";
 import MatchDetailModal from "@/components/match/MatchDetailModal";
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import {
-  Copy, Users, Shield, AlertTriangle, Trophy, Pencil,
-  Loader2, Image, Swords, CheckCircle2, Clock, Minus, FileText,
+  Copy,
+  Users,
+  Shield,
+  AlertTriangle,
+  Trophy,
+  Pencil,
+  Loader2,
+  Image,
+  Swords,
+  CheckCircle2,
+  Clock,
+  Minus,
+  FileText,
+  Star,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -78,7 +97,12 @@ interface MatchCardProps {
   onDetailClick: (match: Match) => void;
 }
 
-const MatchCard = ({ match, isAdminActive, onMatchClick, onDetailClick }: MatchCardProps) => {
+const MatchCard = ({
+  match,
+  isAdminActive,
+  onMatchClick,
+  onDetailClick,
+}: MatchCardProps) => {
   const clickable =
     isAdminActive &&
     match.status !== "bye" &&
@@ -150,9 +174,7 @@ const MatchCard = ({ match, isAdminActive, onMatchClick, onDetailClick }: MatchC
 
         <div className="px-3 py-1.5 border-t border-border/30 bg-muted/20 flex items-center justify-between">
           <MatchStatusPill status={match.status} />
-
           <div className="flex items-center gap-2">
-            {/* View details button — completed matches only */}
             {isCompleted && (
               <button
                 type="button"
@@ -171,7 +193,6 @@ const MatchCard = ({ match, isAdminActive, onMatchClick, onDetailClick }: MatchC
                 Click to enter score
               </span>
             )}
-            {/* Edit result label for completed + active admin */}
             {isCompleted && isAdminActive && (
               <span className="text-[10px] text-muted-foreground">
                 Click to edit
@@ -194,7 +215,6 @@ const ManageTournament = () => {
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [detailMatch, setDetailMatch] = useState<Match | null>(null);
 
-  // ── Edit tournament state ────────────────────────────────────
   const [editOpen, setEditOpen] = useState(false);
   const [editBanner, setEditBanner] = useState<File | null>(null);
   const [editBannerPreview, setEditBannerPreview] = useState<string | null>(null);
@@ -259,6 +279,13 @@ const ManageTournament = () => {
     enabled: !!id,
   });
 
+  // ── Feature 3 ────────────────────────────────────────────────
+  const { data: topScorers, isLoading: topScorersLoading } = useQuery({
+    queryKey: ["tournament-top-scorers", id],
+    queryFn: () => tournamentService.getTopScorers(id!),
+    enabled: !!id,
+  });
+
   // ── Mutations ────────────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -307,7 +334,6 @@ const ManageTournament = () => {
     },
   });
 
-  // ── Helpers ──────────────────────────────────────────────────
   const copyRegistrationLink = () => {
     if (tournament) {
       navigator.clipboard.writeText(
@@ -329,13 +355,13 @@ const ManageTournament = () => {
   const handleScoreSuccess = () => {
     queryClient.refetchQueries({ queryKey: ["tournament-bracket", id] });
     queryClient.refetchQueries({ queryKey: ["tournament-leaderboard", id] });
+    queryClient.refetchQueries({ queryKey: ["tournament-top-scorers", id] });
     setSelectedMatch(null);
   };
 
-  // When an event-only update closes, refresh the bracket so the detail modal
-  // reflects the latest events if reopened.
   const handleDetailClose = () => {
     queryClient.refetchQueries({ queryKey: ["tournament-bracket", id] });
+    queryClient.refetchQueries({ queryKey: ["tournament-top-scorers", id] });
     setDetailMatch(null);
   };
 
@@ -354,7 +380,6 @@ const ManageTournament = () => {
     tournament?.status !== "cancelled";
   const isAdminActive = tournament?.status === "active";
 
-  // ── Loading / not found ──────────────────────────────────────
   if (isLoading) {
     return (
       <div className="space-y-4 animate-fade-in">
@@ -375,7 +400,6 @@ const ManageTournament = () => {
     );
   }
 
-  // ── Render ───────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <PageBreadcrumbs
@@ -401,12 +425,17 @@ const ManageTournament = () => {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-5">
+        {/* 6 tabs now */}
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
           <TabsTrigger value="matches">Matches</TabsTrigger>
           <TabsTrigger value="bracket">Bracket</TabsTrigger>
-          <TabsTrigger value="leaderboard">Leaderboard</TabsTrigger>
+          <TabsTrigger value="leaderboard">Standings</TabsTrigger>
+          <TabsTrigger value="scorers" className="gap-1">
+            <Star className="h-3 w-3" />
+            Scorers
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Overview ── */}
@@ -475,7 +504,11 @@ const ManageTournament = () => {
                       {window.location.origin}/join/{tournament.inviteCode}
                     </code>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={copyRegistrationLink}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={copyRegistrationLink}
+                  >
                     <Copy className="h-4 w-4" />
                   </Button>
                 </div>
@@ -752,7 +785,6 @@ const ManageTournament = () => {
               isAdmin={true}
               isActive={isAdminActive}
               onMatchClick={(match) => {
-                // Completed matches open the detail modal from the bracket view too
                 if (match.status === "completed") {
                   setDetailMatch(match);
                 } else {
@@ -769,7 +801,7 @@ const ManageTournament = () => {
           )}
         </TabsContent>
 
-        {/* ── Leaderboard ── */}
+        {/* ── Standings ── */}
         <TabsContent value="leaderboard">
           {leaderboard && leaderboard.length > 0 ? (
             <LeaderboardTable
@@ -779,8 +811,33 @@ const ManageTournament = () => {
           ) : (
             <EmptyState
               icon={<Trophy className="h-8 w-8" />}
-              title="No leaderboard data"
+              title="No standings data"
               description="Results will appear here once matches are completed."
+            />
+          )}
+        </TabsContent>
+
+        {/* ── Top Scorers ── */}
+        <TabsContent value="scorers">
+          {topScorersLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-12 w-full rounded-md" />
+              ))}
+            </div>
+          ) : topScorers && topScorers.length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Ranked by goals scored across all completed matches. Log match
+                events from the Matches tab to populate this list.
+              </p>
+              <TopScorersTable entries={topScorers} />
+            </div>
+          ) : (
+            <EmptyState
+              icon={<Star className="h-8 w-8" />}
+              title="No scorers yet"
+              description="Log goal events on completed matches to build the top scorers list."
             />
           )}
         </TabsContent>

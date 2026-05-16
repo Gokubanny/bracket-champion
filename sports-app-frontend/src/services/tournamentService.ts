@@ -1,5 +1,13 @@
 import api from "./api";
-import type { Tournament, DashboardStats, Activity, BracketData, LeaderboardEntry, PlatformStats } from "@/types";
+import type {
+  Tournament,
+  DashboardStats,
+  Activity,
+  BracketData,
+  LeaderboardEntry,
+  PlatformStats,
+  TopScorerEntry,
+} from "@/types";
 
 export interface CreateTournamentPayload {
   name: string;
@@ -24,7 +32,11 @@ export interface UpdateTournamentPayload {
 }
 
 export const tournamentService = {
-  getAll: async (filters?: { status?: string; sport?: string; search?: string }): Promise<Tournament[]> => {
+  getAll: async (filters?: {
+    status?: string;
+    sport?: string;
+    search?: string;
+  }): Promise<Tournament[]> => {
     const { data } = await api.get("/tournaments", { params: filters });
     const raw = data?.data?.tournaments ?? data?.data ?? data ?? [];
     return Array.isArray(raw) ? raw.map(mapTournament) : [];
@@ -49,7 +61,8 @@ export const tournamentService = {
   create: async (payload: CreateTournamentPayload): Promise<Tournament> => {
     const formData = new FormData();
     Object.entries(payload).forEach(([key, value]) => {
-      if (value !== undefined) formData.append(key, value instanceof File ? value : String(value));
+      if (value !== undefined)
+        formData.append(key, value instanceof File ? value : String(value));
     });
     const { data } = await api.post("/tournaments", formData, {
       headers: { "Content-Type": "multipart/form-data" },
@@ -57,9 +70,10 @@ export const tournamentService = {
     return mapTournament(data?.data?.tournament ?? data?.data ?? data);
   },
 
-  // FIX: was sending JSON — the backend route has upload.single("banner") middleware
-  // so it expects multipart/form-data. Switched to FormData so banner file uploads work.
-  update: async (id: string, payload: UpdateTournamentPayload): Promise<Tournament> => {
+  update: async (
+    id: string,
+    payload: UpdateTournamentPayload
+  ): Promise<Tournament> => {
     const formData = new FormData();
     const { banner, ...rest } = payload;
     Object.entries(rest).forEach(([key, value]) => {
@@ -99,6 +113,17 @@ export const tournamentService = {
     return Array.isArray(standings) ? standings.map(mapLeaderboardEntry) : [];
   },
 
+  // ── Feature 3 ────────────────────────────────────────────────────────────
+  getTopScorers: async (id: string): Promise<TopScorerEntry[]> => {
+    try {
+      const { data } = await api.get(`/leaderboard/${id}/top-scorers`);
+      const raw = data?.data?.topScorers ?? data?.data ?? data ?? [];
+      return Array.isArray(raw) ? raw : [];
+    } catch {
+      return [];
+    }
+  },
+
   getDashboardStats: async (): Promise<DashboardStats> => {
     const { data } = await api.get("/tournaments/dashboard/stats");
     const d = data?.data ?? data ?? {};
@@ -118,20 +143,20 @@ export const tournamentService = {
       const d = data?.data ?? data ?? {};
 
       const recentTournaments: any[] = d.recentTournaments ?? [];
-      const recentTeams: any[]       = d.recentTeams ?? [];
-      const recentMatches: any[]     = d.recentMatches ?? [];
+      const recentTeams: any[] = d.recentTeams ?? [];
+      const recentMatches: any[] = d.recentMatches ?? [];
 
       const activities: Activity[] = [];
 
       recentTournaments.forEach((t: any) => {
         const id = t._id ?? t.id;
-        const createdAt  = new Date(t.createdAt).getTime();
-        const updatedAt  = new Date(t.updatedAt).getTime();
+        const createdAt = new Date(t.createdAt).getTime();
+        const updatedAt = new Date(t.updatedAt).getTime();
         const wasUpdated = updatedAt - createdAt > 5000;
 
         if (wasUpdated) {
           const statusMessages: Record<string, string> = {
-            active:    `Bracket generated for "${t.name}"`,
+            active: `Bracket generated for "${t.name}"`,
             completed: `"${t.name}" completed 🏆`,
             cancelled: `"${t.name}" was cancelled`,
           };
@@ -139,7 +164,7 @@ export const tournamentService = {
           if (message) {
             activities.push({
               id: `${id}-status`,
-              type: "tournament_updated",
+              type: "tournament_updated" as any,
               message,
               timestamp: t.updatedAt,
               tournamentId: id,
@@ -157,16 +182,16 @@ export const tournamentService = {
       });
 
       recentTeams.forEach((t: any) => {
-        const id             = t._id ?? t.id;
+        const id = t._id ?? t.id;
         const tournamentName = t.tournamentId?.name ?? "a tournament";
-        const createdAt      = new Date(t.createdAt).getTime();
-        const updatedAt      = new Date(t.updatedAt).getTime();
-        const wasUpdated     = updatedAt - createdAt > 5000;
+        const createdAt = new Date(t.createdAt).getTime();
+        const updatedAt = new Date(t.updatedAt).getTime();
+        const wasUpdated = updatedAt - createdAt > 5000;
 
         if (!wasUpdated) {
           activities.push({
             id: `${id}-registered`,
-            type: "team_registered",
+            type: "team_approved" as any,
             message: `"${t.name}" registered for ${tournamentName}`,
             timestamp: t.createdAt,
             tournamentId: t.tournamentId?._id ?? t.tournamentId,
@@ -191,7 +216,7 @@ export const tournamentService = {
       });
 
       recentMatches.forEach((m: any) => {
-        const id             = m._id ?? m.id;
+        const id = m._id ?? m.id;
         const tournamentName = m.tournamentId?.name ?? "a tournament";
         activities.push({
           id: `${id}-result`,
@@ -202,7 +227,10 @@ export const tournamentService = {
         });
       });
 
-      activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      activities.sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
       return activities.slice(0, 15);
     } catch {
       return [];
@@ -212,14 +240,20 @@ export const tournamentService = {
   getPlatformStats: async (): Promise<PlatformStats> => {
     try {
       const { data } = await api.get("/tournaments/stats");
-      return data?.data ?? data ?? { totalTournaments: 0, totalTeams: 0, totalMatches: 0 };
+      return (
+        data?.data ?? data ?? {
+          totalTournaments: 0,
+          totalTeams: 0,
+          totalMatches: 0,
+        }
+      );
     } catch {
       return { totalTournaments: 0, totalTeams: 0, totalMatches: 0 };
     }
   },
 };
 
-// ── Helpers ──────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function mapTournament(t: any): Tournament {
   if (!t) return t;
@@ -277,7 +311,9 @@ function buildBracketData(matches: any[]): BracketData {
     roundMap[r].push(mapMatch(m));
   });
 
-  const roundNums = Object.keys(roundMap).map(Number).sort((a, b) => a - b);
+  const roundNums = Object.keys(roundMap)
+    .map(Number)
+    .sort((a, b) => a - b);
   const rounds = roundNums.map((r) =>
     roundMap[r].sort((a, b) => a.matchNumber - b.matchNumber)
   );
@@ -316,7 +352,6 @@ function mapMatch(m: any) {
       : "upcoming",
     nextMatchId: m.nextMatchId ?? null,
     scheduledDate: m.scheduledDate ?? null,
-    // ── Feature 2 ──
     events: (m.events ?? []).map((e: any) => ({
       id: e._id ?? e.id,
       type: e.type,

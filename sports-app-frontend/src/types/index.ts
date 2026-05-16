@@ -51,7 +51,7 @@ export interface Player {
 export type MatchEventType = "goal" | "yellow_card" | "red_card" | "assist";
 
 export interface MatchEvent {
-  id?: string;       // _id from MongoDB (present on saved events)
+  id?: string;
   type: MatchEventType;
   player: string;
   team: "teamA" | "teamB";
@@ -87,6 +87,17 @@ export interface LeaderboardEntry {
   lost: number;
   points: number;
   [key: string]: unknown;
+}
+
+// ── Feature 3: Top Scorers ───────────────────────────────────────────────────
+export interface TopScorerEntry {
+  rank: number;
+  player: string;
+  teamId: string;
+  teamName: string;
+  teamColor: string;
+  teamLogo?: string | null;
+  goals: number;
 }
 
 export interface Activity {

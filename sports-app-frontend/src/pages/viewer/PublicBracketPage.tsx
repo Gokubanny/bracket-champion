@@ -13,10 +13,11 @@ import EmptyState from "@/components/ui/EmptyState";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import BracketView from "@/components/bracket/BracketView";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
+import TopScorersTable from "@/components/leaderboard/TopScorersTable";
 import MatchDetailModal from "@/components/match/MatchDetailModal";
 import { Card, CardContent } from "@/components/ui/card";
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
-import { Trophy, Users, Shield, GitBranch, BarChart3 } from "lucide-react";
+import { Trophy, Users, Shield, GitBranch, BarChart3, Star } from "lucide-react";
 import type { TournamentStatus, SportType } from "@/constants/sports";
 import type { Match } from "@/types";
 import { motion, AnimatePresence } from "framer-motion";
@@ -62,7 +63,18 @@ const PublicBracketPage = () => {
     enabled: !!tournament?.id,
   });
 
-  // Socket.io real-time updates
+  // ── Feature 3 ────────────────────────────────────────────────
+  const {
+    data: topScorers,
+    isLoading: topScorersLoading,
+    refetch: refetchTopScorers,
+  } = useQuery({
+    queryKey: ["tournament-top-scorers-public", tournament?.id],
+    queryFn: () => tournamentService.getTopScorers(tournament!.id),
+    enabled: !!tournament?.id,
+  });
+
+  // Socket.io
   useEffect(() => {
     if (!tournament?.id) return;
 
@@ -74,6 +86,7 @@ const PublicBracketPage = () => {
       setTimeout(() => play("cheer", { volume: 0.3 }), 250);
       refetchBracket();
       refetchLeaderboard();
+      refetchTopScorers();
     });
 
     const unsub2 = socketService.onTournamentCompleted(() => {
@@ -87,7 +100,7 @@ const PublicBracketPage = () => {
       unsub2();
       socketService.leaveTournament(tournament.id);
     };
-  }, [tournament?.id, refetchBracket, refetchLeaderboard, play]);
+  }, [tournament?.id, refetchBracket, refetchLeaderboard, refetchTopScorers, play]);
 
   if (isLoading) {
     return (
@@ -119,7 +132,6 @@ const PublicBracketPage = () => {
   const showCountdown =
     tournament.status === "upcoming" || tournament.status === "registration";
 
-  // Champion from final match
   const finalRound = bracket?.rounds[bracket.totalRounds - 1];
   const finalMatch = finalRound?.[0];
   const champion = finalMatch?.winnerId
@@ -130,7 +142,7 @@ const PublicBracketPage = () => {
 
   return (
     <div className="animate-fade-in">
-      {/* Cinematic banner */}
+      {/* Banner */}
       <div className="relative h-64 sm:h-72 w-full overflow-hidden">
         {tournament.bannerUrl ? (
           <img
@@ -195,15 +207,20 @@ const PublicBracketPage = () => {
           )}
         </AnimatePresence>
 
+        {/* 4 tabs now */}
         <Tabs defaultValue="bracket">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="bracket" className="gap-1.5">
               <GitBranch className="h-3.5 w-3.5" />
               Bracket
             </TabsTrigger>
             <TabsTrigger value="leaderboard" className="gap-1.5">
               <BarChart3 className="h-3.5 w-3.5" />
-              Leaderboard
+              Standings
+            </TabsTrigger>
+            <TabsTrigger value="scorers" className="gap-1.5">
+              <Star className="h-3.5 w-3.5" />
+              Scorers
             </TabsTrigger>
             <TabsTrigger value="teams" className="gap-1.5">
               <Users className="h-3.5 w-3.5" />
@@ -219,9 +236,14 @@ const PublicBracketPage = () => {
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="space-y-3 flex-1">
                       <Skeleton className="h-5 w-20 mx-auto" />
-                      {Array.from({ length: Math.max(1, 4 / i) }).map((_, j) => (
-                        <Skeleton key={j} className="h-20 w-full rounded-lg" />
-                      ))}
+                      {Array.from({ length: Math.max(1, 4 / i) }).map(
+                        (_, j) => (
+                          <Skeleton
+                            key={j}
+                            className="h-20 w-full rounded-lg"
+                          />
+                        )
+                      )}
                     </div>
                   ))}
                 </div>
@@ -230,7 +252,6 @@ const PublicBracketPage = () => {
               <BracketView
                 bracket={bracket}
                 onMatchClick={(match) => {
-                  // Public users can tap completed matches to see the event timeline
                   if (match.status === "completed") {
                     setDetailMatch(match);
                   }
@@ -251,7 +272,7 @@ const PublicBracketPage = () => {
             )}
           </TabsContent>
 
-          {/* ── Leaderboard ── */}
+          {/* ── Standings ── */}
           <TabsContent value="leaderboard" className="mt-4">
             {leaderboardLoading ? (
               <div className="space-y-2">
@@ -275,6 +296,25 @@ const PublicBracketPage = () => {
                 }
                 title="No results yet"
                 description="The leaderboard will update as matches are completed."
+              />
+            )}
+          </TabsContent>
+
+          {/* ── Top Scorers ── */}
+          <TabsContent value="scorers" className="mt-4">
+            {topScorersLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full rounded-md" />
+                ))}
+              </div>
+            ) : topScorers && topScorers.length > 0 ? (
+              <TopScorersTable entries={topScorers} />
+            ) : (
+              <EmptyState
+                icon={<Star className="h-8 w-8" />}
+                title="No scorers yet"
+                description="The top scorers list updates as match goals are recorded."
               />
             )}
           </TabsContent>
@@ -312,7 +352,9 @@ const PublicBracketPage = () => {
                             />
                           </div>
                           <div className="min-w-0">
-                            <h4 className="font-medium truncate">{team.name}</h4>
+                            <h4 className="font-medium truncate">
+                              {team.name}
+                            </h4>
                             <p className="text-xs text-muted-foreground">
                               <Users className="inline h-3 w-3 mr-1" />
                               {team.players.length} players
@@ -374,7 +416,6 @@ const PublicBracketPage = () => {
         </Tabs>
       </div>
 
-      {/* Match detail modal — opens when a completed match is tapped on the bracket */}
       <MatchDetailModal
         match={detailMatch}
         open={!!detailMatch}
