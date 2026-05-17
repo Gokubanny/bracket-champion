@@ -18,13 +18,9 @@ const { errorHandler } = require("./middleware/errorHandler");
 const app = express();
 const server = http.createServer(app);
 
-// Init Socket.io
 initSocket(server);
-
-// Connect to MongoDB
 connectDB();
 
-// Middleware - CORS
 const allowedOrigins = [
   "https://arenax-sdlf.onrender.com",
   "https://arenax-frontend.onrender.com",
@@ -36,17 +32,9 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // In development, allow all origins (covers phone on local network via 192.168.x.x)
-      if (process.env.NODE_ENV !== "production") {
-        return callback(null, true);
-      }
-
-      // In production, enforce the allow-list
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS not allowed for origin: ${origin}`));
-      }
+      if (process.env.NODE_ENV !== "production") return callback(null, true);
+      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      else callback(new Error(`CORS not allowed for origin: ${origin}`));
     },
     credentials: true,
   })
@@ -57,20 +45,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
-// ── Root & Health Checks ────────────────────────────────────
-app.get("/", (req, res) => {
-  res.json({ 
-    message: "Bracket Champion API is running", 
-    version: "1.0.0",
-    status: "active"
-  });
-});
-
-app.get("/api", (req, res) => {
-  res.json({ 
-    message: "Bracket Champion API", 
-    version: "1.0.0",
-    status: "active",
+app.get("/", (req, res) => res.json({ message: "ArenaX API is running", version: "2.0.0", status: "active" }));
+app.get("/api", (req, res) =>
+  res.json({
+    message: "ArenaX API",
+    version: "2.0.0",
     endpoints: {
       auth: "/api/auth",
       tournaments: "/api/tournaments",
@@ -78,19 +57,13 @@ app.get("/api", (req, res) => {
       matches: "/api/matches",
       leaderboard: "/api/leaderboard",
       sportConfig: "/api/sport-config",
-    }
-  });
-});
+    },
+  })
+);
+app.get("/api/health", (req, res) =>
+  res.json({ status: "ok", message: "Server is running", timestamp: new Date().toISOString() })
+);
 
-app.get("/api/health", (req, res) => {
-  res.json({ 
-    status: "ok", 
-    message: "Server is running",
-    timestamp: new Date().toISOString()
-  });
-});
-
-// ── API Routes ──────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/tournaments", tournamentRoutes);
 app.use("/api/teams", teamRoutes);
@@ -98,16 +71,9 @@ app.use("/api/matches", matchRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/sport-config", sportConfigRoutes);
 
-// ── 404 Handler ─────────────────────────────────────────────
-app.use((req, res) => {
-  res.status(404).json({ 
-    success: false, 
-    message: "Route not found",
-    path: req.path
-  });
-});
-
-// ── Error Handler ───────────────────────────────────────────
+app.use((req, res) =>
+  res.status(404).json({ success: false, message: "Route not found", path: req.path })
+);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
@@ -115,7 +81,7 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 API: http://localhost:${PORT}/api`);
   console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
-  console.log(`🌐 CORS mode: ${process.env.NODE_ENV === "production" ? "strict (allow-list)" : "open (development)"}`);
+  console.log(`🌐 CORS: ${process.env.NODE_ENV === "production" ? "strict" : "open (dev)"}`);
 });
 
 module.exports = app;

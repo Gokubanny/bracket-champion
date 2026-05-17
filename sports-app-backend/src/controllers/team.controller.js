@@ -4,38 +4,45 @@ const User = require("../models/User.model");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { emitToTournament } = require("../socket");
 
-// @desc    Register team for tournament using invite code
-// @route   POST /api/teams/register/:inviteCode
-// @access  Public
 const registerTeam = asyncHandler(async (req, res) => {
   const { inviteCode } = req.params;
-  const { teamName, color, repFullName, repEmail, repPassword, players } = req.body;
+  const {
+    teamName, color, repFullName, repEmail, repPassword, players,
+    defaultFormation,
+  } = req.body;
   const logo = req.file ? req.file.path : null;
 
   const tournament = await Tournament.findOne({ inviteCode });
-  if (!tournament) {
+  if (!tournament)
     return res.status(404).json({ success: false, message: "Invalid invite code" });
-  }
 
-  if (tournament.status !== "registration") {
-    return res.status(400).json({ success: false, message: "Tournament registration is closed" });
-  }
+  if (tournament.status !== "registration")
+    return res
+      .status(400)
+      .json({ success: false, message: "Tournament registration is closed" });
 
-  const existingTeam = await Team.findOne({ name: teamName, tournamentId: tournament._id });
-  if (existingTeam) {
-    return res.status(400).json({ success: false, message: "Team name already registered for this tournament" });
-  }
+  const existingTeam = await Team.findOne({
+    name: teamName,
+    tournamentId: tournament._id,
+  });
+  if (existingTeam)
+    return res
+      .status(400)
+      .json({ success: false, message: "Team name already registered for this tournament" });
 
-  const registeredTeams = await Team.countDocuments({ tournamentId: tournament._id });
-  if (registeredTeams >= tournament.teamSlots) {
+  const registeredTeams = await Team.countDocuments({
+    tournamentId: tournament._id,
+  });
+  if (registeredTeams >= tournament.teamSlots)
     return res.status(400).json({ success: false, message: "Tournament is full" });
-  }
 
   let rep = await User.findOne({ email: repEmail });
   if (!rep) {
-    if (!repFullName || !repPassword) {
-      return res.status(400).json({ success: false, message: "Rep full name and password are required for new accounts" });
-    }
+    if (!repFullName || !repPassword)
+      return res.status(400).json({
+        success: false,
+        message: "Rep full name and password are required for new accounts",
+      });
     rep = await User.create({
       fullName: repFullName,
       email: repEmail,
@@ -47,7 +54,8 @@ const registerTeam = asyncHandler(async (req, res) => {
   let parsedPlayers = [];
   if (players) {
     try {
-      parsedPlayers = typeof players === "string" ? JSON.parse(players) : players;
+      parsedPlayers =
+        typeof players === "string" ? JSON.parse(players) : players;
     } catch {
       return res.status(400).json({ success: false, message: "Invalid players data" });
     }
@@ -61,6 +69,7 @@ const registerTeam = asyncHandler(async (req, res) => {
     repId: rep._id,
     players: parsedPlayers,
     status: "pending",
+    defaultFormation: defaultFormation || null,
   });
 
   await team.populate("repId", "fullName email");
@@ -78,13 +87,9 @@ const registerTeam = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get teams for a tournament
-// @route   GET /api/teams/tournament/:tournamentId
-// @access  Public
 const getTeamsByTournament = asyncHandler(async (req, res) => {
   const { tournamentId } = req.params;
   const { status } = req.query;
-
   const filter = { tournamentId };
   if (status) filter.status = status;
 
@@ -106,53 +111,49 @@ const getTeamsByTournament = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get all teams the logged-in user reps
-// @route   GET /api/teams/my-teams
-// @access  Private
 const getMyTeams = asyncHandler(async (req, res) => {
   const teams = await Team.find({ repId: req.user._id })
     .populate("repId", "fullName email")
-    .populate("tournamentId", "name sport status startDate inviteCode")
+    .populate("tournamentId", "name sport status startDate inviteCode structure gameFormat")
     .sort({ createdAt: -1 });
-
   res.json({ success: true, data: { teams } });
 });
 
-// @desc    Get single team
-// @route   GET /api/teams/:teamId
-// @access  Public
 const getTeamById = asyncHandler(async (req, res) => {
-  const team = await Team.findById(req.params.teamId).populate("repId", "fullName email");
-  if (!team) {
+  const team = await Team.findById(req.params.teamId).populate(
+    "repId",
+    "fullName email"
+  );
+  if (!team)
     return res.status(404).json({ success: false, message: "Team not found" });
-  }
   res.json({ success: true, data: { team } });
 });
 
-// @desc    Update team name, color, and/or squad — called by the team rep
-// @route   PATCH /api/teams/:teamId/squad
-// @access  Private (rep of the team)
 const updateTeam = asyncHandler(async (req, res) => {
   const team = await Team.findById(req.params.teamId);
-  if (!team) {
+  if (!team)
     return res.status(404).json({ success: false, message: "Team not found" });
-  }
 
-  // Only the rep of this team can edit it
-  if (team.repId.toString() !== req.user._id.toString()) {
-    return res.status(403).json({ success: false, message: "Not authorized to edit this team" });
-  }
+  if (team.repId.toString() !== req.user._id.toString())
+    return res
+      .status(403)
+      .json({ success: false, message: "Not authorized to edit this team" });
 
-  // Block edits once tournament is active or completed
   const tournament = await Tournament.findById(team.tournamentId);
-  if (tournament && (tournament.status === "active" || tournament.status === "completed")) {
-    return res.status(400).json({ success: false, message: "Squad editing is locked. Tournament has started." });
+  if (
+    tournament &&
+    (tournament.status === "active" || tournament.status === "completed")
+  ) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Squad editing is locked. Tournament has started." });
   }
 
-  // Apply whichever fields were sent — name, color, players are all optional
   if (req.body.name !== undefined) team.name = req.body.name;
   if (req.body.color !== undefined) team.color = req.body.color;
   if (Array.isArray(req.body.players)) team.players = req.body.players;
+  if (req.body.defaultFormation !== undefined)
+    team.defaultFormation = req.body.defaultFormation;
 
   await team.save();
   await team.populate("repId", "fullName email");
@@ -160,14 +161,32 @@ const updateTeam = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Team updated successfully", data: { team } });
 });
 
-// @desc    Admin approve team
-// @route   PATCH /api/teams/:teamId/approve
-// @access  Admin
+// @desc    Update team formation (usable even during active tournament by rep)
+// @route   PATCH /api/teams/:teamId/formation
+// @access  Private (rep)
+const updateFormation = asyncHandler(async (req, res) => {
+  const { formation } = req.body;
+  const team = await Team.findById(req.params.teamId);
+  if (!team)
+    return res.status(404).json({ success: false, message: "Team not found" });
+
+  if (team.repId.toString() !== req.user._id.toString())
+    return res.status(403).json({ success: false, message: "Not authorized." });
+
+  team.defaultFormation = formation;
+  await team.save();
+
+  res.json({
+    success: true,
+    message: "Formation updated.",
+    data: { formation: team.defaultFormation },
+  });
+});
+
 const approveTeam = asyncHandler(async (req, res) => {
   const team = await Team.findById(req.params.teamId);
-  if (!team) {
+  if (!team)
     return res.status(404).json({ success: false, message: "Team not found" });
-  }
 
   const wasAlreadyApproved = team.status === "approved";
   team.status = "approved";
@@ -187,15 +206,11 @@ const approveTeam = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Team approved", data: { team } });
 });
 
-// @desc    Admin reject team
-// @route   PATCH /api/teams/:teamId/reject
-// @access  Admin
 const rejectTeam = asyncHandler(async (req, res) => {
   const { reason } = req.body;
   const team = await Team.findById(req.params.teamId);
-  if (!team) {
+  if (!team)
     return res.status(404).json({ success: false, message: "Team not found" });
-  }
 
   const wasApproved = team.status === "approved";
   team.status = "rejected";
@@ -218,11 +233,6 @@ const rejectTeam = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  registerTeam,
-  getTeamsByTournament,
-  getMyTeams,
-  getTeamById,
-  updateTeam,
-  approveTeam,
-  rejectTeam,
+  registerTeam, getTeamsByTournament, getMyTeams, getTeamById,
+  updateTeam, updateFormation, approveTeam, rejectTeam,
 };

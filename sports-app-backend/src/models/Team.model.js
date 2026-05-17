@@ -4,17 +4,32 @@ const playerSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   jerseyNumber: { type: Number, required: true },
   position: { type: String, required: true },
+  role: {
+    type: String,
+    enum: ["starting", "substitute"],
+    default: "starting",
+  },
 });
 
 const teamSchema = new mongoose.Schema(
   {
-    tournamentId: { type: mongoose.Schema.Types.ObjectId, ref: "Tournament", required: true },
+    tournamentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tournament",
+      required: true,
+    },
     name: { type: String, required: true, trim: true },
     logo: { type: String, default: null },
     color: { type: String, default: "#3B82F6" },
     repId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    rejectionReason: { type: String, default: null },
     players: [playerSchema],
+    defaultFormation: { type: String, default: null },
   },
   { timestamps: true }
 );

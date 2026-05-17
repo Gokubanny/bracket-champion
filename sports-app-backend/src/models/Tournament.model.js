@@ -17,16 +17,41 @@ const tournamentSchema = new mongoose.Schema(
       enum: ["upcoming", "registration", "active", "completed", "cancelled"],
       default: "upcoming",
     },
-    inviteCode: { type: String, unique: true, default: () => uuidv4().slice(0, 8).toUpperCase() },
+    inviteCode: {
+      type: String,
+      unique: true,
+      default: () => uuidv4().slice(0, 8).toUpperCase(),
+    },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     approvedTeamsCount: { type: Number, default: 0 },
+
+    // ── Tournament format & structure ──────────────────────────
+    structure: {
+      type: String,
+      enum: ["knockout", "group_knockout"],
+      default: "knockout",
+    },
+    gameFormat: { type: String, default: null }, // e.g. "11v11", "5v5"
+    currentStage: {
+      type: String,
+      enum: ["group", "knockout"],
+      default: "knockout",
+    },
+    // Group stage settings (used when structure === "group_knockout")
+    groupCount: { type: Number, default: 2 },
+    teamsPerGroup: { type: Number, default: 4 },
+    teamsAdvancingPerGroup: { type: Number, default: 2 },
   },
   { timestamps: true }
 );
 
-// Auto-open registration on creation
 tournamentSchema.pre("save", function (next) {
-  if (this.isNew) this.status = "registration";
+  if (this.isNew) {
+    this.status = "registration";
+    if (this.structure === "group_knockout") {
+      this.currentStage = "group";
+    }
+  }
   next();
 });
 

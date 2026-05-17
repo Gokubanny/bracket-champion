@@ -1,6 +1,9 @@
 import { SPORTS, type SportType } from "@/constants/sports";
 import type { LeaderboardEntry } from "@/types";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table, TableBody, TableCell, TableHead,
+  TableHeader, TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { Shield, Trophy, Medal } from "lucide-react";
 import CountUpNumber from "@/components/ui/CountUpNumber";
@@ -8,16 +11,36 @@ import CountUpNumber from "@/components/ui/CountUpNumber";
 interface LeaderboardTableProps {
   entries: LeaderboardEntry[];
   sport: SportType;
+  showDraws?: boolean;
 }
 
-const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, sport }) => {
+const LeaderboardTable: React.FC<LeaderboardTableProps> = ({
+  entries,
+  sport,
+  showDraws,
+}) => {
   const config = SPORTS[sport];
-  const columns = config.leaderboardColumns;
+
+  // Use sport's own columns; inject "Drawn" column if sport allows draws
+  // and the data has any draws
+  const hasDraw = showDraws ?? entries.some((e) => (e.drawn as number) > 0);
+
+  const columns = config.leaderboardColumns.map((col) => {
+    // Insert "drawn" after "won" if needed
+    if (col.key === "lost" && hasDraw) return [
+      { key: "drawn", label: "Drawn", shortLabel: "D" },
+      col,
+    ];
+    return [col];
+  }).flat();
 
   const getRankIcon = (rank: number) => {
-    if (rank === 1) return <Trophy className="h-4 w-4" style={{ color: "hsl(45, 93%, 47%)" }} />;
-    if (rank === 2) return <Medal className="h-4 w-4" style={{ color: "hsl(0, 0%, 75%)" }} />;
-    if (rank === 3) return <Medal className="h-4 w-4" style={{ color: "hsl(30, 60%, 50%)" }} />;
+    if (rank === 1)
+      return <Trophy className="h-4 w-4" style={{ color: "hsl(45, 93%, 47%)" }} />;
+    if (rank === 2)
+      return <Medal className="h-4 w-4" style={{ color: "hsl(0, 0%, 75%)" }} />;
+    if (rank === 3)
+      return <Medal className="h-4 w-4" style={{ color: "hsl(30, 60%, 50%)" }} />;
     return null;
   };
 
@@ -27,7 +50,13 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, sport }) =
         <TableHeader>
           <TableRow className="bg-muted/50">
             {columns.map((col) => (
-              <TableHead key={col.key} className={cn("text-xs font-medium", col.key === "team" ? "text-left" : "text-center")}>
+              <TableHead
+                key={col.key}
+                className={cn(
+                  "text-xs font-medium",
+                  col.key === "team" ? "text-left" : "text-center"
+                )}
+              >
                 <span className="hidden sm:inline">{col.label}</span>
                 <span className="sm:hidden">{col.shortLabel}</span>
               </TableHead>
@@ -39,10 +68,18 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, sport }) =
             <TableRow
               key={entry.team.id}
               className={cn(index < 3 && "bg-primary/5")}
-              style={{ borderLeft: `3px solid ${entry.team.color || "transparent"}` }}
+              style={{
+                borderLeft: `3px solid ${entry.team.color || "transparent"}`,
+              }}
             >
               {columns.map((col) => (
-                <TableCell key={col.key} className={cn("text-sm", col.key === "team" ? "text-left" : "text-center")}>
+                <TableCell
+                  key={col.key}
+                  className={cn(
+                    "text-sm",
+                    col.key === "team" ? "text-left" : "text-center"
+                  )}
+                >
                   {col.key === "rank" ? (
                     <div className="flex items-center justify-center gap-1">
                       {getRankIcon(entry.rank)}
@@ -50,8 +87,14 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, sport }) =
                     </div>
                   ) : col.key === "team" ? (
                     <div className="flex items-center gap-2">
-                      <div className="h-6 w-6 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: entry.team.color + "33" }}>
-                        <Shield className="h-3 w-3" style={{ color: entry.team.color }} />
+                      <div
+                        className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: entry.team.color + "33" }}
+                      >
+                        <Shield
+                          className="h-3 w-3"
+                          style={{ color: entry.team.color }}
+                        />
                       </div>
                       <span className="truncate">{entry.team.name}</span>
                     </div>

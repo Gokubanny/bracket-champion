@@ -1,12 +1,7 @@
 import api from "./api";
 import type {
-  Tournament,
-  DashboardStats,
-  Activity,
-  BracketData,
-  LeaderboardEntry,
-  PlatformStats,
-  TopScorerEntry,
+  Tournament, DashboardStats, Activity, BracketData,
+  LeaderboardEntry, PlatformStats, TopScorerEntry, Group,
 } from "@/types";
 
 export interface CreateTournamentPayload {
@@ -19,6 +14,11 @@ export interface CreateTournamentPayload {
   registrationDeadline: string;
   estimatedMatchDuration?: number;
   visibility: "public" | "private";
+  structure: "knockout" | "group_knockout";
+  gameFormat?: string;
+  groupCount?: number;
+  teamsPerGroup?: number;
+  teamsAdvancingPerGroup?: number;
 }
 
 export interface UpdateTournamentPayload {
@@ -61,7 +61,7 @@ export const tournamentService = {
   create: async (payload: CreateTournamentPayload): Promise<Tournament> => {
     const formData = new FormData();
     Object.entries(payload).forEach(([key, value]) => {
-      if (value !== undefined)
+      if (value !== undefined && value !== null)
         formData.append(key, value instanceof File ? value : String(value));
     });
     const { data } = await api.post("/tournaments", formData, {
@@ -70,10 +70,7 @@ export const tournamentService = {
     return mapTournament(data?.data?.tournament ?? data?.data ?? data);
   },
 
-  update: async (
-    id: string,
-    payload: UpdateTournamentPayload
-  ): Promise<Tournament> => {
+  update: async (id: string, payload: UpdateTournamentPayload): Promise<Tournament> => {
     const formData = new FormData();
     const { banner, ...rest } = payload;
     Object.entries(rest).forEach(([key, value]) => {
@@ -101,7 +98,12 @@ export const tournamentService = {
       const { data } = await api.get(`/matches/tournament/${id}`);
       const matches = data?.data?.matches ?? data?.data ?? data ?? [];
       if (!Array.isArray(matches) || matches.length === 0) return null;
-      return buildBracketData(matches);
+      // Only return knockout stage matches for bracket view
+      const knockoutMatches = matches.filter(
+        (m: any) => m.stage === "knockout" || !m.stage
+      );
+      if (knockoutMatches.length === 0) return null;
+      return buildBracketData(knockoutMatches);
     } catch {
       return null;
     }
@@ -113,7 +115,6 @@ export const tournamentService = {
     return Array.isArray(standings) ? standings.map(mapLeaderboardEntry) : [];
   },
 
-  // ── Feature 3 ────────────────────────────────────────────────────────────
   getTopScorers: async (id: string): Promise<TopScorerEntry[]> => {
     try {
       const { data } = await api.get(`/leaderboard/${id}/top-scorers`);
@@ -122,6 +123,32 @@ export const tournamentService = {
     } catch {
       return [];
     }
+  },
+
+  // ── Group Stage ───────────────────────────────────────────────────────────
+  getGroups: async (tournamentId: string): Promise<Group[]> => {
+    try {
+      const { data } = await api.get(`/tournaments/${tournamentId}/groups`);
+      const raw = data?.data?.groups ?? data?.data ?? data ?? [];
+      return Array.isArray(raw) ? raw.map(mapGroup) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  createGroups: async (
+    tournamentId: string,
+    groups: { name: string; teamIds: string[] }[]
+  ): Promise<void> => {
+    await api.post(`/tournaments/${tournamentId}/groups`, { groups });
+  },
+
+  generateKnockoutFromGroups: async (tournamentId: string): Promise<BracketData> => {
+    const { data } = await api.post(
+      `/tournaments/${tournamentId}/groups/generate-knockout`
+    );
+    const matches = data?.data?.matches ?? [];
+    return buildBracketData(matches);
   },
 
   getDashboardStats: async (): Promise<DashboardStats> => {
@@ -141,19 +168,15 @@ export const tournamentService = {
     try {
       const { data } = await api.get("/tournaments/dashboard/activity");
       const d = data?.data ?? data ?? {};
-
       const recentTournaments: any[] = d.recentTournaments ?? [];
       const recentTeams: any[] = d.recentTeams ?? [];
       const recentMatches: any[] = d.recentMatches ?? [];
-
       const activities: Activity[] = [];
 
       recentTournaments.forEach((t: any) => {
         const id = t._id ?? t.id;
-        const createdAt = new Date(t.createdAt).getTime();
-        const updatedAt = new Date(t.updatedAt).getTime();
-        const wasUpdated = updatedAt - createdAt > 5000;
-
+        const wasUpdated =
+          new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime() > 5000;
         if (wasUpdated) {
           const statusMessages: Record<string, string> = {
             active: `Bracket generated for "${t.name}"`,
@@ -161,15 +184,14 @@ export const tournamentService = {
             cancelled: `"${t.name}" was cancelled`,
           };
           const message = statusMessages[t.status];
-          if (message) {
+          if (message)
             activities.push({
               id: `${id}-status`,
-              type: "tournament_updated" as any,
+              type: "tournament_created" as any,
               message,
               timestamp: t.updatedAt,
               tournamentId: id,
             });
-          }
         } else {
           activities.push({
             id: `${id}-created`,
@@ -184,11 +206,9 @@ export const tournamentService = {
       recentTeams.forEach((t: any) => {
         const id = t._id ?? t.id;
         const tournamentName = t.tournamentId?.name ?? "a tournament";
-        const createdAt = new Date(t.createdAt).getTime();
-        const updatedAt = new Date(t.updatedAt).getTime();
-        const wasUpdated = updatedAt - createdAt > 5000;
-
-        if (!wasUpdated) {
+        const wasUpdated =
+          new Date(t.updatedAt).getTime() - new Date(t.createdAt).getTime() > 5000;
+        if (!wasUpdated)
           activities.push({
             id: `${id}-registered`,
             type: "team_approved" as any,
@@ -196,32 +216,32 @@ export const tournamentService = {
             timestamp: t.createdAt,
             tournamentId: t.tournamentId?._id ?? t.tournamentId,
           });
-        } else if (t.status === "approved") {
+        else if (t.status === "approved")
           activities.push({
             id: `${id}-approved`,
             type: "team_approved",
-            message: `"${t.name}" was approved for ${tournamentName}`,
+            message: `"${t.name}" approved for ${tournamentName}`,
             timestamp: t.updatedAt,
             tournamentId: t.tournamentId?._id ?? t.tournamentId,
           });
-        } else if (t.status === "rejected") {
+        else if (t.status === "rejected")
           activities.push({
             id: `${id}-rejected`,
             type: "team_rejected",
-            message: `"${t.name}" was rejected from ${tournamentName}`,
+            message: `"${t.name}" rejected from ${tournamentName}`,
             timestamp: t.updatedAt,
             tournamentId: t.tournamentId?._id ?? t.tournamentId,
           });
-        }
       });
 
       recentMatches.forEach((m: any) => {
         const id = m._id ?? m.id;
         const tournamentName = m.tournamentId?.name ?? "a tournament";
+        const stageLabel = m.stage === "group" ? "Group Stage" : `Round ${m.round}`;
         activities.push({
           id: `${id}-result`,
           type: "result_confirmed",
-          message: `Match result confirmed — Round ${m.round} in ${tournamentName}`,
+          message: `${stageLabel} result confirmed in ${tournamentName}`,
           timestamp: m.confirmedAt ?? m.updatedAt,
           tournamentId: m.tournamentId?._id ?? m.tournamentId,
         });
@@ -241,11 +261,8 @@ export const tournamentService = {
     try {
       const { data } = await api.get("/tournaments/stats");
       return (
-        data?.data ?? data ?? {
-          totalTournaments: 0,
-          totalTeams: 0,
-          totalMatches: 0,
-        }
+        data?.data ??
+        data ?? { totalTournaments: 0, totalTeams: 0, totalMatches: 0 }
       );
     } catch {
       return { totalTournaments: 0, totalTeams: 0, totalMatches: 0 };
@@ -273,6 +290,12 @@ function mapTournament(t: any): Tournament {
     createdAt: t.createdAt,
     teamCount: t.approvedTeamsCount ?? t.teamCount ?? 0,
     adminName: t.createdBy?.fullName ?? t.adminName ?? "Admin",
+    structure: t.structure ?? "knockout",
+    gameFormat: t.gameFormat ?? null,
+    currentStage: t.currentStage ?? "knockout",
+    groupCount: t.groupCount ?? 2,
+    teamsPerGroup: t.teamsPerGroup ?? 4,
+    teamsAdvancingPerGroup: t.teamsAdvancingPerGroup ?? 2,
   };
 }
 
@@ -290,9 +313,11 @@ function mapLeaderboardEntry(s: any): LeaderboardEntry {
       status: "approved",
       players: [],
       createdAt: "",
+      defaultFormation: null,
     },
     played: s.played ?? 0,
     won: s.won ?? 0,
+    drawn: s.drawn ?? 0,
     lost: s.lost ?? 0,
     points: s.points ?? 0,
     goalsFor: s.goalsFor ?? 0,
@@ -301,23 +326,54 @@ function mapLeaderboardEntry(s: any): LeaderboardEntry {
   };
 }
 
+function mapGroup(g: any): Group {
+  return {
+    id: g._id ?? g.id,
+    tournamentId: g.tournamentId,
+    name: g.name,
+    status: g.status ?? "active",
+    teams: (g.teams ?? []).map((t: any) => ({
+      id: t._id ?? t.id ?? t,
+      name: t.name ?? "",
+      color: t.color ?? "#3B82F6",
+      badgeUrl: t.logo ?? null,
+      tournamentId: g.tournamentId,
+      repName: "", repEmail: "", status: "approved", players: [], createdAt: "",
+      defaultFormation: null,
+    })),
+    matches: (g.matches ?? []).map(mapMatch),
+    standings: (g.standings ?? []).map((s: any, i: number) => ({
+      rank: s.rank ?? i + 1,
+      teamId: s.teamId?._id ?? s.teamId,
+      name: s.name,
+      color: s.color ?? "#3B82F6",
+      logo: s.logo ?? null,
+      played: s.played ?? 0,
+      won: s.won ?? 0,
+      drawn: s.drawn ?? 0,
+      lost: s.lost ?? 0,
+      goalsFor: s.goalsFor ?? 0,
+      goalsAgainst: s.goalsAgainst ?? 0,
+      goalDifference: s.goalDifference ?? 0,
+      points: s.points ?? 0,
+    })),
+  };
+}
+
 function buildBracketData(matches: any[]): BracketData {
   if (!matches.length) return { rounds: [], totalRounds: 0 };
-
   const roundMap: Record<number, any[]> = {};
   matches.forEach((m) => {
     const r = m.round ?? 1;
     if (!roundMap[r]) roundMap[r] = [];
     roundMap[r].push(mapMatch(m));
   });
-
   const roundNums = Object.keys(roundMap)
     .map(Number)
     .sort((a, b) => a - b);
   const rounds = roundNums.map((r) =>
     roundMap[r].sort((a, b) => a.matchNumber - b.matchNumber)
   );
-
   return { rounds, totalRounds: rounds.length };
 }
 
@@ -336,8 +392,8 @@ function mapMatch(m: any) {
   return {
     id: m._id ?? m.id,
     tournamentId: m.tournamentId,
-    round: m.round - 1,
-    matchNumber: m.matchNumber - 1,
+    round: (m.round ?? 1) - 1,
+    matchNumber: (m.matchNumber ?? 1) - 1,
     teamA: mapTeamSide(m.teamA),
     teamB: mapTeamSide(m.teamB),
     scoreA: m.teamA?.score ?? null,
@@ -347,6 +403,10 @@ function mapMatch(m: any) {
       ? "bye"
       : m.status === "completed"
       ? "completed"
+      : m.status === "live"
+      ? "live"
+      : m.status === "halftime"
+      ? "halftime"
       : m.status === "ongoing"
       ? "in_progress"
       : "upcoming",
@@ -356,8 +416,22 @@ function mapMatch(m: any) {
       id: e._id ?? e.id,
       type: e.type,
       player: e.player,
+      playerOut: e.playerOut ?? null,
       team: e.team,
       minute: e.minute,
+      phase: e.phase,
     })),
+    stage: m.stage ?? "knockout",
+    groupId: m.groupId ?? null,
+    isDraw: m.isDraw ?? false,
+    teamAFormation: m.teamAFormation ?? null,
+    teamBFormation: m.teamBFormation ?? null,
+    matchPhase: m.matchPhase ?? "not_started",
+    liveStartedAt: m.liveStartedAt ?? null,
+    currentPhaseStartedAt: m.currentPhaseStartedAt ?? null,
+    phaseTimeOffset: m.phaseTimeOffset ?? 0,
+    periodScores: m.periodScores ?? [],
+    penaltyScore: m.penaltyScore ?? null,
+    penaltyWinnerId: m.penaltyWinnerId ?? null,
   };
 }

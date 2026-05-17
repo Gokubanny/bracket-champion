@@ -1,16 +1,9 @@
-/**
- * Single Elimination Bracket Generator
- * Handles non-power-of-2 team counts using BYE slots
- */
-
-// Get next power of 2 >= n
 const nextPowerOfTwo = (n) => {
   let power = 1;
   while (power < n) power *= 2;
   return power;
 };
 
-// Shuffle array (Fisher-Yates)
 const shuffleArray = (arr) => {
   const shuffled = [...arr];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -21,35 +14,61 @@ const shuffleArray = (arr) => {
 };
 
 /**
- * Generate bracket matches for a tournament
- * @param {Array} teams - Array of approved team objects
- * @param {String} tournamentId
- * @returns {Array} Array of match objects ready to be saved to DB
+ * Generate round-robin matches within a group
  */
-const generateBracket = (teams, tournamentId) => {
+const generateGroupMatches = (teams, tournamentId, groupId, startMatchNumber = 1) => {
+  const matches = [];
+  let matchCounter = startMatchNumber;
+  for (let i = 0; i < teams.length; i++) {
+    for (let j = i + 1; j < teams.length; j++) {
+      matches.push({
+        tournamentId,
+        groupId,
+        stage: "group",
+        round: 0, // group stage = round 0
+        matchNumber: matchCounter++,
+        teamA: { teamId: teams[i]._id, score: null },
+        teamB: { teamId: teams[j]._id, score: null },
+        winnerId: null,
+        status: "pending",
+        isBye: false,
+        nextMatchId: null,
+      });
+    }
+  }
+  return matches;
+};
+
+/**
+ * Generate single-elimination bracket
+ * @param {Array} teams
+ * @param {String} tournamentId
+ * @param {Number} startMatchNumber
+ */
+const generateBracket = (teams, tournamentId, startMatchNumber = 1) => {
   const totalSlots = nextPowerOfTwo(teams.length);
   const totalRounds = Math.log2(totalSlots);
   const byeCount = totalSlots - teams.length;
 
-  // Shuffle teams for random seeding
   const shuffledTeams = shuffleArray(teams);
-
-  // Pad with null (BYE slots)
-  const seededSlots = [...shuffledTeams.map((t) => t._id), ...Array(byeCount).fill(null)];
+  const seededSlots = [
+    ...shuffledTeams.map((t) => t._id),
+    ...Array(byeCount).fill(null),
+  ];
 
   const matches = [];
-  let matchCounter = 1;
+  let matchCounter = startMatchNumber;
 
-  // Generate Round 1 matches
   const round1Matches = [];
   for (let i = 0; i < totalSlots; i += 2) {
     const teamAId = seededSlots[i];
     const teamBId = seededSlots[i + 1];
     const isBye = teamBId === null || teamAId === null;
-    const winnerId = isBye ? (teamAId || teamBId) : null;
+    const winnerId = isBye ? teamAId || teamBId : null;
 
     const match = {
       tournamentId,
+      stage: "knockout",
       round: 1,
       matchNumber: matchCounter++,
       teamA: { teamId: teamAId, score: null },
@@ -57,19 +76,19 @@ const generateBracket = (teams, tournamentId) => {
       winnerId: isBye ? winnerId : null,
       status: isBye ? "completed" : "pending",
       isBye,
-      nextMatchId: null, // linked after all matches created
+      nextMatchId: null,
     };
     round1Matches.push(match);
     matches.push(match);
   }
 
-  // Generate subsequent rounds as empty placeholders
   let prevRoundMatches = round1Matches;
   for (let round = 2; round <= totalRounds; round++) {
     const currentRoundMatches = [];
     for (let i = 0; i < prevRoundMatches.length; i += 2) {
       const match = {
         tournamentId,
+        stage: "knockout",
         round,
         matchNumber: matchCounter++,
         teamA: { teamId: null, score: null },
@@ -89,37 +108,40 @@ const generateBracket = (teams, tournamentId) => {
 };
 
 /**
- * After saving matches to DB, link nextMatchId references
- * so we know where winners advance to
- * @param {Array} savedMatches - Matches after DB insert (have _id)
- * @returns {Array} updated matches with nextMatchId set
+ * Link nextMatchId for knockout matches only
  */
 const linkNextMatches = (savedMatches) => {
-  // Group by round
+  const knockoutMatches = savedMatches.filter((m) => m.stage === "knockout");
+
   const rounds = {};
-  savedMatches.forEach((m) => {
+  knockoutMatches.forEach((m) => {
     if (!rounds[m.round]) rounds[m.round] = [];
     rounds[m.round].push(m);
   });
 
-  const roundNumbers = Object.keys(rounds).map(Number).sort((a, b) => a - b);
+  const roundNumbers = Object.keys(rounds)
+    .map(Number)
+    .sort((a, b) => a - b);
   const updates = [];
 
   for (let r = 0; r < roundNumbers.length - 1; r++) {
     const currentRound = rounds[roundNumbers[r]];
     const nextRound = rounds[roundNumbers[r + 1]];
-
     for (let i = 0; i < currentRound.length; i++) {
       const nextMatchIndex = Math.floor(i / 2);
       updates.push({
         matchId: currentRound[i]._id,
         nextMatchId: nextRound[nextMatchIndex]._id,
-        slot: i % 2 === 0 ? "A" : "B", // which slot winner goes into
+        slot: i % 2 === 0 ? "A" : "B",
       });
     }
   }
-
   return updates;
 };
 
-module.exports = { generateBracket, linkNextMatches, nextPowerOfTwo };
+module.exports = {
+  generateBracket,
+  generateGroupMatches,
+  linkNextMatches,
+  nextPowerOfTwo,
+};

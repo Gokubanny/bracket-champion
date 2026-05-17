@@ -5,24 +5,17 @@ const { asyncHandler } = require("../middleware/errorHandler");
 const { generateBracket, linkNextMatches } = require("../utils/bracketGenerator");
 const { emitToTournament } = require("../socket");
 
-// ── Helper: attach live approved team counts to an array of tournament docs ──
-// We run ONE aggregation for all tournaments at once (not N queries),
-// then merge the results in memory. This keeps it efficient even for large lists.
 const attachApprovedCounts = async (tournaments) => {
   if (!tournaments.length) return [];
-
   const ids = tournaments.map((t) => t._id);
-
   const counts = await Team.aggregate([
     { $match: { tournamentId: { $in: ids }, status: "approved" } },
     { $group: { _id: "$tournamentId", count: { $sum: 1 } } },
   ]);
-
   const countMap = {};
   counts.forEach(({ _id, count }) => {
     countMap[_id.toString()] = count;
   });
-
   return tournaments.map((t) => {
     const obj = t.toObject ? t.toObject() : { ...t };
     obj.approvedTeamsCount = countMap[t._id.toString()] ?? 0;
@@ -37,21 +30,32 @@ const createTournament = asyncHandler(async (req, res) => {
   const {
     name, sport, description, teamSlots,
     startDate, registrationDeadline, estimatedMatchDuration, visibility,
+    structure, gameFormat, groupCount, teamsPerGroup, teamsAdvancingPerGroup,
   } = req.body;
 
   const banner = req.file ? req.file.path : null;
 
   const tournament = await Tournament.create({
     name, sport, description, banner,
-    teamSlots: Number(teamSlots), startDate, registrationDeadline,
+    teamSlots: Number(teamSlots),
+    startDate, registrationDeadline,
     estimatedMatchDuration, visibility,
+    structure: structure || "knockout",
+    gameFormat: gameFormat || null,
+    groupCount: Number(groupCount) || 2,
+    teamsPerGroup: Number(teamsPerGroup) || 4,
+    teamsAdvancingPerGroup: Number(teamsAdvancingPerGroup) || 2,
     createdBy: req.user._id,
   });
 
-  res.status(201).json({ success: true, message: "Tournament created.", data: { tournament } });
+  res.status(201).json({
+    success: true,
+    message: "Tournament created.",
+    data: { tournament },
+  });
 });
 
-// @desc    Get all tournaments (admin sees own, public sees public ones)
+// @desc    Get all tournaments
 // @route   GET /api/tournaments
 // @access  Public/Private
 const getTournaments = asyncHandler(async (req, res) => {
@@ -72,29 +76,23 @@ const getTournaments = asyncHandler(async (req, res) => {
     .populate("createdBy", "name email")
     .sort({ createdAt: -1 });
 
-  // FIX: compute live approved team counts instead of relying on the stored
-  // approvedTeamsCount field, which is 0 for any team approved before the
-  // increment logic was added and can drift out of sync over time.
   const tournaments = await attachApprovedCounts(raw);
 
-  res.json({
-    success: true,
-    data: { tournaments, count: tournaments.length },
-  });
+  res.json({ success: true, data: { tournaments, count: tournaments.length } });
 });
 
 // @desc    Get single tournament by ID
 // @route   GET /api/tournaments/:id
 // @access  Public
 const getTournament = asyncHandler(async (req, res) => {
-  const tournament = await Tournament.findById(req.params.id).populate("createdBy", "fullName email");
-  if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found." });
+  const tournament = await Tournament.findById(req.params.id).populate(
+    "createdBy",
+    "fullName email"
+  );
+  if (!tournament)
+    return res.status(404).json({ success: false, message: "Tournament not found." });
 
   const teams = await Team.find({ tournamentId: req.params.id });
-  const approvedTeams = teams.filter(t => t.status === "approved");
-  const pendingTeams = teams.filter(t => t.status === "pending");
-
-  // Attach live count to this single tournament too
   const [withCount] = await attachApprovedCounts([tournament]);
 
   res.json({
@@ -103,8 +101,8 @@ const getTournament = asyncHandler(async (req, res) => {
       tournament: withCount,
       teams: {
         total: teams.length,
-        approved: approvedTeams.length,
-        pending: pendingTeams.length,
+        approved: teams.filter((t) => t.status === "approved").length,
+        pending: teams.filter((t) => t.status === "pending").length,
         list: teams,
       },
     },
@@ -116,10 +114,9 @@ const getTournament = asyncHandler(async (req, res) => {
 // @access  Public
 const getTournamentByInviteCode = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findOne({ inviteCode: req.params.code });
-  if (!tournament) return res.status(404).json({ success: false, message: "Invalid invite code." });
-
+  if (!tournament)
+    return res.status(404).json({ success: false, message: "Invalid invite code." });
   const [withCount] = await attachApprovedCounts([tournament]);
-
   res.json({ success: true, data: { tournament: withCount } });
 });
 
@@ -127,14 +124,26 @@ const getTournamentByInviteCode = asyncHandler(async (req, res) => {
 // @route   PATCH /api/tournaments/:id
 // @access  Admin
 const updateTournament = asyncHandler(async (req, res) => {
-  const tournament = await Tournament.findOne({ _id: req.params.id, createdBy: req.user._id });
-  if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found." });
+  const tournament = await Tournament.findOne({
+    _id: req.params.id,
+    createdBy: req.user._id,
+  });
+  if (!tournament)
+    return res.status(404).json({ success: false, message: "Tournament not found." });
 
-  if (tournament.status === "active" || tournament.status === "completed") {
-    return res.status(400).json({ success: false, message: "Cannot edit an active or completed tournament." });
+  if (
+    tournament.status === "active" ||
+    tournament.status === "completed"
+  ) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Cannot edit an active or completed tournament." });
   }
 
-  const allowedFields = ["name", "description", "startDate", "registrationDeadline", "visibility", "estimatedMatchDuration"];
+  const allowedFields = [
+    "name", "description", "startDate", "registrationDeadline",
+    "visibility", "estimatedMatchDuration",
+  ];
   allowedFields.forEach((field) => {
     if (req.body[field] !== undefined) tournament[field] = req.body[field];
   });
@@ -149,67 +158,72 @@ const updateTournament = asyncHandler(async (req, res) => {
 // @route   GET /api/tournaments/:id/teams
 // @access  Public
 const getTournamentTeams = asyncHandler(async (req, res) => {
-  const { tournamentId } = req.params;
+  const { id } = req.params;
   const { status } = req.query;
-
-  const filter = { tournamentId };
+  const filter = { tournamentId: id };
   if (status) filter.status = status;
-
   const teams = await Team.find(filter).sort({ createdAt: -1 });
-
   res.json({
     success: true,
     data: {
       teams,
       count: teams.length,
-      approved: teams.filter(t => t.status === "approved").length,
-      pending: teams.filter(t => t.status === "pending").length,
-      rejected: teams.filter(t => t.status === "rejected").length,
+      approved: teams.filter((t) => t.status === "approved").length,
+      pending: teams.filter((t) => t.status === "pending").length,
+      rejected: teams.filter((t) => t.status === "rejected").length,
     },
   });
 });
 
-// @desc    Generate bracket — locks registration, starts tournament
+// @desc    Generate bracket — for knockout-only tournaments
 // @route   POST /api/tournaments/:id/generate-bracket
 // @access  Admin
 const generateTournamentBracket = asyncHandler(async (req, res) => {
-  const tournament = await Tournament.findOne({ _id: req.params.id, createdBy: req.user._id });
-  if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found." });
+  const tournament = await Tournament.findOne({
+    _id: req.params.id,
+    createdBy: req.user._id,
+  });
+  if (!tournament)
+    return res.status(404).json({ success: false, message: "Tournament not found." });
 
   if (tournament.status !== "registration") {
-    return res.status(400).json({ success: false, message: "Tournament is not in registration phase." });
+    return res
+      .status(400)
+      .json({ success: false, message: "Tournament is not in registration phase." });
   }
 
-  const approvedTeams = await Team.find({ tournamentId: tournament._id, status: "approved" });
+  const approvedTeams = await Team.find({
+    tournamentId: tournament._id,
+    status: "approved",
+  });
 
   if (approvedTeams.length < 2) {
-    return res.status(400).json({ success: false, message: "At least 2 approved teams are required." });
+    return res
+      .status(400)
+      .json({ success: false, message: "At least 2 approved teams are required." });
   }
 
   const { matches } = generateBracket(approvedTeams, tournament._id);
   const savedMatches = await Match.insertMany(matches);
 
   const linkUpdates = linkNextMatches(savedMatches);
-  const bulkOps = linkUpdates.map(({ matchId, nextMatchId, slot }) => ({
-    updateOne: {
-      filter: { _id: matchId },
-      update: { $set: { nextMatchId } },
-    },
+  const bulkOps = linkUpdates.map(({ matchId, nextMatchId }) => ({
+    updateOne: { filter: { _id: matchId }, update: { $set: { nextMatchId } } },
   }));
 
   for (const update of linkUpdates) {
-    const match = savedMatches.find((m) => m._id.toString() === update.matchId.toString());
+    const match = savedMatches.find(
+      (m) => m._id.toString() === update.matchId.toString()
+    );
     if (match?.isBye && match.winnerId) {
-      const nextMatch = savedMatches.find((m) => m._id.toString() === update.nextMatchId.toString());
-      if (nextMatch) {
-        const teamSlot = update.slot === "A" ? "teamA.teamId" : "teamB.teamId";
-        bulkOps.push({
-          updateOne: {
-            filter: { _id: update.nextMatchId },
-            update: { $set: { [teamSlot]: match.winnerId } },
-          },
-        });
-      }
+      const teamSlot =
+        update.slot === "A" ? "teamA.teamId" : "teamB.teamId";
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: update.nextMatchId },
+          update: { $set: { [teamSlot]: match.winnerId } },
+        },
+      });
     }
   }
 
@@ -218,23 +232,36 @@ const generateTournamentBracket = asyncHandler(async (req, res) => {
   tournament.status = "active";
   await tournament.save();
 
-  const finalMatches = await Match.find({ tournamentId: tournament._id }).sort({ round: 1, matchNumber: 1 });
-  emitToTournament(tournament._id.toString(), "tournament:started", { tournamentId: tournament._id });
+  const finalMatches = await Match.find({ tournamentId: tournament._id }).sort({
+    round: 1,
+    matchNumber: 1,
+  });
 
-  res.json({ success: true, message: "Bracket generated. Tournament is now active.", data: { matches: finalMatches } });
+  emitToTournament(tournament._id.toString(), "tournament:started", {
+    tournamentId: tournament._id,
+  });
+
+  res.json({
+    success: true,
+    message: "Bracket generated. Tournament is now active.",
+    data: { matches: finalMatches },
+  });
 });
 
 // @desc    Cancel tournament
 // @route   PATCH /api/tournaments/:id/cancel
 // @access  Admin
 const cancelTournament = asyncHandler(async (req, res) => {
-  const tournament = await Tournament.findOne({ _id: req.params.id, createdBy: req.user._id });
-  if (!tournament) return res.status(404).json({ success: false, message: "Tournament not found." });
-
-  if (tournament.status === "completed") {
-    return res.status(400).json({ success: false, message: "Cannot cancel a completed tournament." });
-  }
-
+  const tournament = await Tournament.findOne({
+    _id: req.params.id,
+    createdBy: req.user._id,
+  });
+  if (!tournament)
+    return res.status(404).json({ success: false, message: "Tournament not found." });
+  if (tournament.status === "completed")
+    return res
+      .status(400)
+      .json({ success: false, message: "Cannot cancel a completed tournament." });
   tournament.status = "cancelled";
   await tournament.save();
   res.json({ success: true, message: "Tournament cancelled." });
@@ -250,18 +277,12 @@ const getPlatformStats = asyncHandler(async (req, res) => {
       Team.countDocuments({ status: "approved" }),
       Match.countDocuments({ status: "completed" }),
     ]);
-
     res.status(200).json({
       success: true,
       data: { totalTournaments, totalTeams, totalMatches },
     });
   } catch (error) {
-    console.error("❌ Error fetching platform stats:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch platform statistics",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -271,31 +292,30 @@ const getPlatformStats = asyncHandler(async (req, res) => {
 const getDashboardStats = asyncHandler(async (req, res) => {
   try {
     const userId = req.user?._id;
-
-    const adminTournamentIds = await Tournament.find({ createdBy: userId }).distinct("_id");
-
+    const adminTournamentIds = await Tournament.find({
+      createdBy: userId,
+    }).distinct("_id");
     const [
-      totalTournaments,
-      activeTournaments,
-      completedTournaments,
-      completedMatches,
-      pendingApprovals,
+      totalTournaments, activeTournaments, completedTournaments,
+      completedMatches, pendingApprovals,
     ] = await Promise.all([
       Tournament.countDocuments({ createdBy: userId }),
       Tournament.countDocuments({ createdBy: userId, status: "active" }),
       Tournament.countDocuments({ createdBy: userId, status: "completed" }),
-      Match.countDocuments({ tournamentId: { $in: adminTournamentIds }, status: "completed" }),
-      Team.countDocuments({ tournamentId: { $in: adminTournamentIds }, status: "pending" }),
+      Match.countDocuments({
+        tournamentId: { $in: adminTournamentIds },
+        status: "completed",
+      }),
+      Team.countDocuments({
+        tournamentId: { $in: adminTournamentIds },
+        status: "pending",
+      }),
     ]);
-
     res.json({
       success: true,
       data: {
-        totalTournaments,
-        activeTournaments,
-        completedTournaments,
-        completedMatches,
-        pendingApprovals,
+        totalTournaments, activeTournaments, completedTournaments,
+        completedMatches, pendingApprovals,
       },
     });
   } catch (error) {
@@ -309,21 +329,20 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 const getDashboardActivity = asyncHandler(async (req, res) => {
   try {
     const userId = req.user?._id;
-
-    const adminTournamentIds = await Tournament.find({ createdBy: userId }).distinct("_id");
+    const adminTournamentIds = await Tournament.find({
+      createdBy: userId,
+    }).distinct("_id");
 
     const [recentTournaments, recentTeams, recentMatches] = await Promise.all([
       Tournament.find({ createdBy: userId })
         .sort({ updatedAt: -1 })
         .limit(10)
         .select("name sport status createdAt updatedAt"),
-
       Team.find({ tournamentId: { $in: adminTournamentIds } })
         .sort({ updatedAt: -1 })
         .limit(15)
         .select("name status createdAt updatedAt tournamentId")
         .populate("tournamentId", "name"),
-
       Match.find({
         tournamentId: { $in: adminTournamentIds },
         status: "completed",
@@ -331,29 +350,19 @@ const getDashboardActivity = asyncHandler(async (req, res) => {
       })
         .sort({ confirmedAt: -1 })
         .limit(10)
-        .select("round matchNumber confirmedAt tournamentId")
+        .select("round matchNumber confirmedAt tournamentId stage")
         .populate("tournamentId", "name"),
     ]);
 
-    res.json({
-      success: true,
-      data: { recentTournaments, recentTeams, recentMatches },
-    });
+    res.json({ success: true, data: { recentTournaments, recentTeams, recentMatches } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 module.exports = {
-  createTournament,
-  getTournaments,
-  getTournament,
-  getTournamentByInviteCode,
-  updateTournament,
-  getTournamentTeams,
-  generateTournamentBracket,
-  cancelTournament,
-  getDashboardStats,
-  getDashboardActivity,
-  getPlatformStats,
+  createTournament, getTournaments, getTournament,
+  getTournamentByInviteCode, updateTournament, getTournamentTeams,
+  generateTournamentBracket, cancelTournament,
+  getDashboardStats, getDashboardActivity, getPlatformStats,
 };
