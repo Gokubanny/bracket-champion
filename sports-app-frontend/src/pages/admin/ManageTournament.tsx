@@ -609,7 +609,7 @@ const ManageTournament = () => {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList className={`grid w-full ${gridCols}`}>
+        <TabsList className={`flex gap-4 w-full ${gridCols}`}>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="teams">Teams</TabsTrigger>
           {isGroupKnockout && (

@@ -249,7 +249,7 @@ const PublicBracketPage = () => {
         )}
 
         <Tabs defaultValue={isGroupKnockout ? "groups" : "bracket"}>
-          <TabsList className={`grid w-full ${gridCols}`}>
+          <TabsList className={`flex gap-4 w-full ${gridCols}`}>
             {isGroupKnockout && (
               <TabsTrigger value="groups" className="gap-1.5">
                 <Layers className="h-3.5 w-3.5" />
