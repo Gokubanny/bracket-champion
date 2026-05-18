@@ -6,56 +6,43 @@ const { emitToTournament } = require("../socket");
 
 const registerTeam = asyncHandler(async (req, res) => {
   const { inviteCode } = req.params;
-  const {
-    teamName, color, repFullName, repEmail, repPassword, players,
-    defaultFormation,
-  } = req.body;
+  const { teamName, color, repFullName, repEmail, repPassword, players, defaultFormation } = req.body;
   const logo = req.file ? req.file.path : null;
 
   const tournament = await Tournament.findOne({ inviteCode });
   if (!tournament)
     return res.status(404).json({ success: false, message: "Invalid invite code" });
-
   if (tournament.status !== "registration")
-    return res
-      .status(400)
-      .json({ success: false, message: "Tournament registration is closed" });
+    return res.status(400).json({ success: false, message: "Tournament registration is closed" });
 
-  const existingTeam = await Team.findOne({
-    name: teamName,
-    tournamentId: tournament._id,
-  });
+  const existingTeam = await Team.findOne({ name: teamName, tournamentId: tournament._id });
   if (existingTeam)
-    return res
-      .status(400)
-      .json({ success: false, message: "Team name already registered for this tournament" });
+    return res.status(400).json({ success: false, message: "Team name already registered for this tournament" });
 
-  const registeredTeams = await Team.countDocuments({
-    tournamentId: tournament._id,
-  });
+  const registeredTeams = await Team.countDocuments({ tournamentId: tournament._id });
   if (registeredTeams >= tournament.teamSlots)
     return res.status(400).json({ success: false, message: "Tournament is full" });
 
+  // ── Rep account: reuse existing or create new ─────────────────────────────
   let rep = await User.findOne({ email: repEmail });
   if (!rep) {
+    // New rep — require full name and password
     if (!repFullName || !repPassword)
-      return res.status(400).json({
-        success: false,
-        message: "Rep full name and password are required for new accounts",
-      });
-    rep = await User.create({
-      fullName: repFullName,
-      email: repEmail,
-      passwordHash: repPassword,
-      role: "viewer",
-    });
+      return res.status(400).json({ success: false, message: "Full name and password are required for new accounts." });
+    rep = await User.create({ fullName: repFullName, email: repEmail, passwordHash: repPassword, role: "viewer" });
+  } else {
+    // Existing rep — verify their password before allowing team registration
+    if (!repPassword)
+      return res.status(400).json({ success: false, message: "Password is required to verify your existing account." });
+    const isValid = await rep.comparePassword(repPassword);
+    if (!isValid)
+      return res.status(401).json({ success: false, message: "Incorrect password. Please enter your existing account password." });
   }
 
   let parsedPlayers = [];
   if (players) {
     try {
-      parsedPlayers =
-        typeof players === "string" ? JSON.parse(players) : players;
+      parsedPlayers = typeof players === "string" ? JSON.parse(players) : players;
     } catch {
       return res.status(400).json({ success: false, message: "Invalid players data" });
     }
@@ -75,9 +62,7 @@ const registerTeam = asyncHandler(async (req, res) => {
   await team.populate("repId", "fullName email");
 
   emitToTournament(tournament._id.toString(), "team:registered", {
-    teamId: team._id,
-    teamName: team.name,
-    status: "pending",
+    teamId: team._id, teamName: team.name, status: "pending",
   });
 
   res.status(201).json({
@@ -92,11 +77,7 @@ const getTeamsByTournament = asyncHandler(async (req, res) => {
   const { status } = req.query;
   const filter = { tournamentId };
   if (status) filter.status = status;
-
-  const teams = await Team.find(filter)
-    .populate("repId", "fullName email")
-    .sort({ createdAt: -1 });
-
+  const teams = await Team.find(filter).populate("repId", "fullName email").sort({ createdAt: -1 });
   res.json({
     success: true,
     data: {
@@ -120,119 +101,80 @@ const getMyTeams = asyncHandler(async (req, res) => {
 });
 
 const getTeamById = asyncHandler(async (req, res) => {
-  const team = await Team.findById(req.params.teamId).populate(
-    "repId",
-    "fullName email"
-  );
-  if (!team)
-    return res.status(404).json({ success: false, message: "Team not found" });
+  const team = await Team.findById(req.params.teamId).populate("repId", "fullName email");
+  if (!team) return res.status(404).json({ success: false, message: "Team not found" });
   res.json({ success: true, data: { team } });
+});
+
+// @desc    Get all teams a rep has ever registered (by email) — for squad import
+// @route   GET /api/teams/rep-history/:email
+// @access  Public
+const getRepHistory = asyncHandler(async (req, res) => {
+  const rep = await User.findOne({ email: decodeURIComponent(req.params.email), role: "viewer" });
+  if (!rep) return res.json({ success: true, data: { teams: [] } });
+
+  const teams = await Team.find({ repId: rep._id, status: { $in: ["approved", "pending"] } })
+    .populate("tournamentId", "name sport status startDate gameFormat structure")
+    .sort({ createdAt: -1 });
+
+  res.json({ success: true, data: { teams } });
 });
 
 const updateTeam = asyncHandler(async (req, res) => {
   const team = await Team.findById(req.params.teamId);
-  if (!team)
-    return res.status(404).json({ success: false, message: "Team not found" });
-
+  if (!team) return res.status(404).json({ success: false, message: "Team not found" });
   if (team.repId.toString() !== req.user._id.toString())
-    return res
-      .status(403)
-      .json({ success: false, message: "Not authorized to edit this team" });
-
+    return res.status(403).json({ success: false, message: "Not authorized to edit this team" });
   const tournament = await Tournament.findById(team.tournamentId);
-  if (
-    tournament &&
-    (tournament.status === "active" || tournament.status === "completed")
-  ) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Squad editing is locked. Tournament has started." });
-  }
-
+  if (tournament && (tournament.status === "active" || tournament.status === "completed"))
+    return res.status(400).json({ success: false, message: "Squad editing is locked. Tournament has started." });
   if (req.body.name !== undefined) team.name = req.body.name;
   if (req.body.color !== undefined) team.color = req.body.color;
   if (Array.isArray(req.body.players)) team.players = req.body.players;
-  if (req.body.defaultFormation !== undefined)
-    team.defaultFormation = req.body.defaultFormation;
-
+  if (req.body.defaultFormation !== undefined) team.defaultFormation = req.body.defaultFormation;
   await team.save();
   await team.populate("repId", "fullName email");
-
   res.json({ success: true, message: "Team updated successfully", data: { team } });
 });
 
-// @desc    Update team formation (usable even during active tournament by rep)
-// @route   PATCH /api/teams/:teamId/formation
-// @access  Private (rep)
 const updateFormation = asyncHandler(async (req, res) => {
   const { formation } = req.body;
   const team = await Team.findById(req.params.teamId);
-  if (!team)
-    return res.status(404).json({ success: false, message: "Team not found" });
-
+  if (!team) return res.status(404).json({ success: false, message: "Team not found" });
   if (team.repId.toString() !== req.user._id.toString())
     return res.status(403).json({ success: false, message: "Not authorized." });
-
   team.defaultFormation = formation;
   await team.save();
-
-  res.json({
-    success: true,
-    message: "Formation updated.",
-    data: { formation: team.defaultFormation },
-  });
+  res.json({ success: true, message: "Formation updated.", data: { formation: team.defaultFormation } });
 });
 
 const approveTeam = asyncHandler(async (req, res) => {
   const team = await Team.findById(req.params.teamId);
-  if (!team)
-    return res.status(404).json({ success: false, message: "Team not found" });
-
+  if (!team) return res.status(404).json({ success: false, message: "Team not found" });
   const wasAlreadyApproved = team.status === "approved";
   team.status = "approved";
   await team.save();
-
-  if (!wasAlreadyApproved) {
-    await Tournament.findByIdAndUpdate(team.tournamentId, {
-      $inc: { approvedTeamsCount: 1 },
-    });
-  }
-
-  emitToTournament(team.tournamentId.toString(), "team:approved", {
-    teamId: team._id,
-    teamName: team.name,
-  });
-
+  if (!wasAlreadyApproved)
+    await Tournament.findByIdAndUpdate(team.tournamentId, { $inc: { approvedTeamsCount: 1 } });
+  emitToTournament(team.tournamentId.toString(), "team:approved", { teamId: team._id, teamName: team.name });
   res.json({ success: true, message: "Team approved", data: { team } });
 });
 
 const rejectTeam = asyncHandler(async (req, res) => {
   const { reason } = req.body;
   const team = await Team.findById(req.params.teamId);
-  if (!team)
-    return res.status(404).json({ success: false, message: "Team not found" });
-
+  if (!team) return res.status(404).json({ success: false, message: "Team not found" });
   const wasApproved = team.status === "approved";
   team.status = "rejected";
   team.rejectionReason = reason;
   await team.save();
-
-  if (wasApproved) {
-    await Tournament.findByIdAndUpdate(team.tournamentId, {
-      $inc: { approvedTeamsCount: -1 },
-    });
-  }
-
-  emitToTournament(team.tournamentId.toString(), "team:rejected", {
-    teamId: team._id,
-    teamName: team.name,
-    reason,
-  });
-
+  if (wasApproved)
+    await Tournament.findByIdAndUpdate(team.tournamentId, { $inc: { approvedTeamsCount: -1 } });
+  emitToTournament(team.tournamentId.toString(), "team:rejected", { teamId: team._id, teamName: team.name, reason });
   res.json({ success: true, message: "Team rejected", data: { team } });
 });
 
 module.exports = {
   registerTeam, getTeamsByTournament, getMyTeams, getTeamById,
-  updateTeam, updateFormation, approveTeam, rejectTeam,
+  getRepHistory, updateTeam, updateFormation, approveTeam, rejectTeam,
 };
