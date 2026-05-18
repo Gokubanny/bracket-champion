@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { Trophy, LogOut, Menu, X, Search, ChevronDown } from "lucide-react";
+import { Trophy, LogOut, Menu, X, Search, ChevronDown, Newspaper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import SoundToggle from "@/components/ui/SoundToggle";
@@ -45,6 +45,14 @@ const Navbar = () => {
               <Search className="h-3.5 w-3.5" />
               Browse Tournaments
             </Link>
+            <Link
+              to="/spotlight"
+              data-active={isActive("/spotlight")}
+              className="story-link text-sm text-muted-foreground hover:text-foreground px-3 py-2 transition-colors flex items-center gap-1.5"
+            >
+              <Newspaper className="h-3.5 w-3.5" />
+              Spotlight
+            </Link>
           </div>
         </div>
 
@@ -68,6 +76,13 @@ const Navbar = () => {
                 <DropdownMenuItem onClick={() => navigate(user.role === "admin" ? "/admin/dashboard" : "/viewer/dashboard")}>
                   Dashboard
                 </DropdownMenuItem>
+                {/* Admin Spotlight link */}
+                {user.role === "admin" && (
+                  <DropdownMenuItem onClick={() => navigate("/admin/spotlight")}>
+                    <Newspaper className="h-4 w-4 mr-2" />
+                    Manage Spotlight
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive">
                   <LogOut className="h-4 w-4 mr-2" /> Logout
@@ -77,7 +92,6 @@ const Navbar = () => {
           ) : (
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={() => navigate("/login")}>Login</Button>
-              {/* <Button size="sm" onClick={() => navigate("/register")}>Sign Up</Button> */}
             </div>
           )}
         </div>
@@ -97,6 +111,9 @@ const Navbar = () => {
           <Link to="/tournaments" onClick={() => setMobileOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-2">
             Browse Tournaments
           </Link>
+          <Link to="/spotlight" onClick={() => setMobileOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-2">
+            Spotlight
+          </Link>
           {user ? (
             <>
               <div className="flex items-center gap-2 text-sm py-2">
@@ -110,6 +127,12 @@ const Navbar = () => {
               <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => { navigate(user.role === "admin" ? "/admin/dashboard" : "/viewer/dashboard"); setMobileOpen(false); }}>
                 Dashboard
               </Button>
+              {user.role === "admin" && (
+                <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => { navigate("/admin/spotlight"); setMobileOpen(false); }}>
+                  <Newspaper className="h-4 w-4 mr-2" />
+                  Manage Spotlight
+                </Button>
+              )}
               <Button variant="ghost" size="sm" className="w-full justify-start text-destructive" onClick={handleLogout}>
                 <LogOut className="h-4 w-4 mr-1" /> Logout
               </Button>
@@ -117,7 +140,6 @@ const Navbar = () => {
           ) : (
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" className="flex-1" onClick={() => { navigate("/login"); setMobileOpen(false); }}>Login</Button>
-              {/* <Button size="sm" className="flex-1" onClick={() => { navigate("/register"); setMobileOpen(false); }}>Sign Up</Button> */}
             </div>
           )}
         </div>

@@ -24,6 +24,12 @@ import ManageTournament from "./pages/admin/ManageTournament";
 import PublicBracketPage from "./pages/viewer/PublicBracketPage";
 import ViewerDashboard from "./pages/viewer/ViewerDashboard";
 
+// Spotlight imports
+import SpotlightIndex from "./pages/Spotlight/SpotlightIndex";
+import SpotlightPost from "./pages/Spotlight/SpotlightPost";
+import CreatePost from "./pages/Spotlight/Admin/CreatePost";
+import ManagePosts from "./pages/Spotlight/Admin/ManagePosts";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -45,6 +51,10 @@ const App = () => (
               <Route path="/sports/:sport" element={<SportInfoPage />} />
               <Route path="/join/:inviteCode" element={<JoinTournament />} />
               <Route path="/tournament/:inviteCode" element={<PublicBracketPage />} />
+              
+              {/* Spotlight routes */}
+              <Route path="/spotlight" element={<SpotlightIndex />} />
+              <Route path="/spotlight/:id" element={<SpotlightPost />} />
             </Route>
 
             {/* Admin routes */}
@@ -53,6 +63,10 @@ const App = () => (
               <Route path="/admin/tournaments" element={<AllTournaments />} />
               <Route path="/admin/tournaments/create" element={<CreateTournament />} />
               <Route path="/admin/tournaments/:id" element={<ManageTournament />} />
+              
+              {/* Admin Spotlight routes */}
+              <Route path="/admin/spotlight" element={<ManagePosts />} />
+              <Route path="/admin/spotlight/create" element={<CreatePost />} />
             </Route>
 
             {/* Viewer routes */}
