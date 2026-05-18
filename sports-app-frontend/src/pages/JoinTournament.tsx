@@ -307,7 +307,7 @@ const JoinTournament = () => {
                               <SelectTrigger><SelectValue placeholder="Choose a formation" /></SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="">No preference</SelectItem>
+                              <SelectItem value="none">No preference</SelectItem>
                               {formations.map((f) => (
                                 <SelectItem key={f} value={f}>{f}</SelectItem>
                               ))}
