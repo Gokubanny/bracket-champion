@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Trophy, PlusCircle } from "lucide-react";
+import { LayoutDashboard, Trophy, PlusCircle, Newspaper } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -12,11 +12,13 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { title } from "process";
 
 const items = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Tournaments", url: "/admin/tournaments", icon: Trophy },
   { title: "Create Tournament", url: "/admin/tournaments/create", icon: PlusCircle },
+  { title: "Manage Spotlight", url: "/admin/spotlight", icon: Newspaper },
 ];
 
 const AdminSidebar = () => {

@@ -17,7 +17,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import SportBadge from "@/components/ui/SportBadge";
 import BracketView from "@/components/bracket/BracketView";
 import LeaderboardTable from "@/components/leaderboard/LeaderboardTable";
-import { Shield, Users, Plus, Trash2, Save, Loader2, Lock, GitBranch, BarChart3, Calendar, Trophy, ChevronDown, History } from "lucide-react";
+import { Shield, Users, Plus, Trash2, Save, Loader2, Lock, GitBranch, BarChart3, Calendar, Trophy, ChevronDown, History, Pencil, Sparkles } from "lucide-react";
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -222,20 +222,56 @@ const ViewerDashboard = () => {
         </div>
       )}
 
+      {/* Setup nudge — shown when registration is still open and something is missing */}
+      {!isLocked && !isEditing && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">Keep your team profile up to date</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                You can edit your <span className="text-foreground font-medium">team name</span>,{" "}
+                <span className="text-foreground font-medium">team colour</span>,{" "}
+                {formations.length > 0 && (
+                  <><span className="text-foreground font-medium">formation</span>,{" "}</>
+                )}
+                and your full <span className="text-foreground font-medium">squad list</span> — as long as registration is still open.
+              </p>
+              {formations.length > 0 && !team.defaultFormation && (
+                <p className="text-xs text-primary mt-1.5 font-medium">
+                  ⚡ You haven't set a formation yet — tap "Edit Team" to add one.
+                </p>
+              )}
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0 border-primary/30 text-primary hover:bg-primary/10" onClick={startEditing}>
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              Edit Team
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Team & Squad Management */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="glass-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: (isEditing ? teamColor : team.color) + "33" }}>
-                <Shield className="h-5 w-5" style={{ color: isEditing ? teamColor : team.color }} />
-              </div>
-              {isEditing ? (
-                <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} className="max-w-xs" />
-              ) : (
-                <span>{team.name}</span>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: (isEditing ? teamColor : team.color) + "33" }}>
+                  <Shield className="h-5 w-5" style={{ color: isEditing ? teamColor : team.color }} />
+                </div>
+                {isEditing ? (
+                  <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} className="max-w-xs" />
+                ) : (
+                  <span>{team.name}</span>
+                )}
+              </CardTitle>
+              {!isEditing && !isLocked && (
+                <Button variant="ghost" size="sm" className="shrink-0 text-muted-foreground hover:text-foreground" onClick={startEditing}>
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+                </Button>
               )}
-            </CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             {isEditing && (
@@ -266,15 +302,29 @@ const ViewerDashboard = () => {
                 )}
               </div>
             )}
+
+            {/* View mode — show all info at a glance */}
             {!isEditing && (
-              <div className="space-y-2">
-                {team.defaultFormation && (
-                  <p className="text-sm text-muted-foreground">
-                    Formation: <span className="font-medium text-foreground">{team.defaultFormation}</span>
-                  </p>
-                )}
-                {!isLocked && (
-                  <Button variant="outline" size="sm" onClick={startEditing}>Edit Team</Button>
+              <div className="space-y-2.5">
+                {/* Colour row */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Team colour</span>
+                  <div className="flex items-center gap-2">
+                    <span className="h-4 w-4 rounded-full border border-border/50 shrink-0" style={{ backgroundColor: team.color }} />
+                    <span className="font-mono text-xs text-muted-foreground">{team.color}</span>
+                  </div>
+                </div>
+
+                {/* Formation row */}
+                {formations.length > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Formation</span>
+                    {team.defaultFormation ? (
+                      <span className="font-medium">{team.defaultFormation}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground italic">Not set</span>
+                    )}
+                  </div>
                 )}
               </div>
             )}
