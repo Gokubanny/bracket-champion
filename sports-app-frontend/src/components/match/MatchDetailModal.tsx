@@ -13,32 +13,51 @@ interface MatchDetailModalProps {
   onClose: () => void;
 }
 
-const EVENT_CONFIG: Record<
-  MatchEventType,
-  { emoji: string; label: string; color: string; bg: string }
-> = {
+// Expanded to include all possible event types
+const EVENT_CONFIG: Record<string, { emoji: string; label: string; color: string; bg: string }> = {
   goal:        { emoji: "⚽", label: "Goal",        color: "text-green-400",  bg: "bg-green-400/10" },
+  own_goal:    { emoji: "🥅", label: "Own Goal",    color: "text-red-400",    bg: "bg-red-400/10" },
+  penalty_goal: { emoji: "🎯", label: "Penalty",    color: "text-green-400",  bg: "bg-green-400/10" },
   assist:      { emoji: "🅰️", label: "Assist",      color: "text-blue-400",   bg: "bg-blue-400/10"  },
   yellow_card: { emoji: "🟨", label: "Yellow Card", color: "text-yellow-400", bg: "bg-yellow-400/10"},
   red_card:    { emoji: "🟥", label: "Red Card",    color: "text-red-400",    bg: "bg-red-400/10"   },
+  substitution: { emoji: "🔄", label: "Substitution", color: "text-purple-400", bg: "bg-purple-400/10" },
+  basket_2pt:  { emoji: "🏀", label: "2 Points",    color: "text-orange-400", bg: "bg-orange-400/10" },
+  basket_3pt:  { emoji: "🏀", label: "3 Points",    color: "text-orange-400", bg: "bg-orange-400/10" },
+  free_throw:  { emoji: "🎯", label: "Free Throw",  color: "text-orange-400", bg: "bg-orange-400/10" },
+  foul:        { emoji: "⚠️", label: "Foul",        color: "text-yellow-400", bg: "bg-yellow-400/10" },
+  technical_foul: { emoji: "⚠️", label: "Tech Foul", color: "text-red-400",   bg: "bg-red-400/10" },
+  point:       { emoji: "🎾", label: "Point",       color: "text-green-400",  bg: "bg-green-400/10" },
+  ace:         { emoji: "🎾", label: "Ace",         color: "text-green-400",  bg: "bg-green-400/10" },
+  block:       { emoji: "🛡️", label: "Block",       color: "text-blue-400",   bg: "bg-blue-400/10" },
 };
+
+const DEFAULT_CONFIG = { emoji: "⚽", label: "Event", color: "text-white", bg: "bg-muted/20" };
 
 const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, open, onClose }) => {
   if (!match) return null;
 
   const isCompleted = match.status === "completed";
-  const events = [...(match.events ?? [])].sort((a, b) => a.minute - b.minute);
+  const events = [...(match.events ?? [])].sort((a, b) => (a.minute || 0) - (b.minute || 0));
 
   const teamAEvents = events.filter((e) => e.team === "teamA");
   const teamBEvents = events.filter((e) => e.team === "teamB");
 
-  const teamAGoals = teamAEvents.filter((e) => e.type === "goal").length;
-  const teamBGoals = teamBEvents.filter((e) => e.type === "goal").length;
+  const teamAGoals = teamAEvents.filter((e) => e.type === "goal" || e.type === "penalty_goal").length;
+  const teamBGoals = teamBEvents.filter((e) => e.type === "goal" || e.type === "penalty_goal").length;
 
   const winnerIsA =
     match.winnerId && match.teamA && match.winnerId === match.teamA.id;
   const winnerIsB =
     match.winnerId && match.teamB && match.winnerId === match.teamB.id;
+
+  // Get display config for event type with fallback
+  const getEventConfig = (type: string) => {
+    return EVENT_CONFIG[type] || DEFAULT_CONFIG;
+  };
+
+  // Get event types for summary (common ones only)
+  const summaryEventTypes = ["goal", "assist", "yellow_card", "red_card"];
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
@@ -126,11 +145,11 @@ const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, open, onClos
               </h4>
               <div className="space-y-1.5">
                 {events.map((ev, i) => {
-                  const cfg = EVENT_CONFIG[ev.type];
+                  const cfg = getEventConfig(ev.type);
                   const isTeamA = ev.team === "teamA";
                   return (
                     <div
-                      key={i}
+                      key={ev.id || i}
                       className={cn(
                         "flex items-center gap-3 rounded-md px-3 py-2 text-sm",
                         cfg.bg,
@@ -184,21 +203,19 @@ const MatchDetailModal: React.FC<MatchDetailModalProps> = ({ match, open, onClos
                       className="font-semibold text-foreground truncate"
                       style={{ color }}
                     >
-                      {name}
+                      {name || "TBD"}
                     </p>
-                    {(["goal", "assist", "yellow_card", "red_card"] as MatchEventType[]).map(
-                      (t) => {
-                        const count = evs.filter((e) => e.type === t).length;
-                        if (!count) return null;
-                        const cfg = EVENT_CONFIG[t];
-                        return (
-                          <div key={t} className="flex items-center gap-1.5">
-                            <span>{cfg.emoji}</span>
-                            <span>{count}× {cfg.label}</span>
-                          </div>
-                        );
-                      }
-                    )}
+                    {summaryEventTypes.map((t) => {
+                      const count = evs.filter((e) => e.type === t).length;
+                      if (!count) return null;
+                      const cfg = getEventConfig(t);
+                      return (
+                        <div key={t} className="flex items-center gap-1.5">
+                          <span>{cfg.emoji}</span>
+                          <span>{count}× {cfg.label}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
               </div>
