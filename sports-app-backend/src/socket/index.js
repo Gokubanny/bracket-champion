@@ -64,6 +64,29 @@ const initSocket = (server) => {
       socket.leave(`match:${matchId}`);
     });
 
+    // ── LIVE MATCH BROADCAST HANDLER ──
+    // When admin sends a live update, broadcast to all viewers in the match room
+    socket.on("match:liveUpdate", (data) => {
+      if (data && data.matchId) {
+        // Broadcast to all clients in the match room (including the sender)
+        io.to(`match:${data.matchId}`).emit("match:liveUpdate", data);
+        console.log(`📡 Broadcast live update to match:${data.matchId} - ${data.action || "update"}`);
+      }
+    });
+
+    // View a match (join match room for live updates)
+    socket.on("view:match", (matchId) => {
+      socket.join(`match:${matchId}`);
+      console.log(`Socket ${socket.id} is viewing match:${matchId}`);
+      socket.emit("match:viewing", { matchId, success: true });
+    });
+
+    // Stop viewing a match
+    socket.on("unview:match", (matchId) => {
+      socket.leave(`match:${matchId}`);
+      console.log(`Socket ${socket.id} stopped viewing match:${matchId}`);
+    });
+
     // Handle ping from client (alternative to heartbeat)
     socket.on("ping", () => {
       socket.emit("pong");

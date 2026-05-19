@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { matchService } from "@/services/matchService";
+import { socketService } from "@/services/socketService";
 import type { Match, MatchEvent } from "@/types";
 import { SPORTS } from "@/constants/sports";
 import type { SportType } from "@/constants/sports";
@@ -56,6 +57,17 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
       ? config.phases[currentPhaseIdx + 1]
       : null;
 
+  // Helper to emit live updates to viewers
+  const emitLiveUpdate = (data: any) => {
+    const socket = socketService.getSocket();
+    if (socket) {
+      socket.emit("match:liveUpdate", {
+        matchId: match.id,
+        ...data,
+      });
+    }
+  };
+
   const startMutation = useMutation({
     mutationFn: () =>
       matchService.startMatch(match.id, {
@@ -64,6 +76,7 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
     onSuccess: () => {
       toast.success("Match started!");
       play("whistle", { volume: 0.5 });
+      emitLiveUpdate({ action: "started", matchPhase: config.phases[0]?.id });
       onSuccess();
     },
     onError: (e: any) => toast.error(e?.response?.data?.message || "Failed to start match"),
@@ -76,6 +89,7 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
     },
     onSuccess: (_, phase) => {
       toast.success(`${config.phases.find((p) => p.id === phase)?.label ?? phase}`);
+      emitLiveUpdate({ action: "phaseChange", matchPhase: phase });
       onSuccess();
     },
     onError: () => toast.error("Failed to update phase"),
@@ -89,9 +103,26 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
         playerOut: eventPlayerOut || undefined,
         team: eventTeam,
       }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Event added");
       if (SCORE_EVENTS.has(eventType)) play("cheer", { volume: 0.3 });
+      
+      // Emit the event to viewers in real-time
+      const newEvent = {
+        type: eventType,
+        player: eventPlayer,
+        playerOut: eventPlayerOut || undefined,
+        team: eventTeam,
+        minute: data?.data?.match?.events?.slice(-1)[0]?.minute || Math.floor(Math.random() * 90) + 1,
+      };
+      
+      emitLiveUpdate({
+        action: "eventAdded",
+        latestEvent: newEvent,
+        scoreA: data?.data?.scoreA,
+        scoreB: data?.data?.scoreB,
+      });
+      
       setEventPlayer("");
       setEventPlayerOut("");
       onSuccess();
@@ -106,8 +137,13 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
         directScoreA !== "" ? Number(directScoreA) : undefined,
         directScoreB !== "" ? Number(directScoreB) : undefined
       ),
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Score updated");
+      emitLiveUpdate({
+        action: "scoreUpdate",
+        scoreA: directScoreA !== "" ? Number(directScoreA) : match.scoreA,
+        scoreB: directScoreB !== "" ? Number(directScoreB) : match.scoreB,
+      });
       onSuccess();
     },
     onError: () => toast.error("Failed to update score"),
@@ -118,6 +154,7 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
     onSuccess: () => {
       toast.success("Match result confirmed!");
       play("champion", { volume: 0.5 });
+      emitLiveUpdate({ action: "completed", status: "completed" });
       onSuccess();
       onClose();
     },

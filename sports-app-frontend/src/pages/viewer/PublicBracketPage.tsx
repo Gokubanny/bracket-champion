@@ -36,11 +36,15 @@ import MatchDetailModal from "@/components/match/MatchDetailModal";
 
 import MatchClock from "@/components/match/MatchClock";
 
+import LiveMatchViewer from "@/components/match/LiveMatchViewer";
+
 import { Card, CardContent } from "@/components/ui/card";
 
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 
-import { Trophy, Users, Shield, GitBranch, BarChart3, Star, Layers, CalendarClock, ChevronRight } from "lucide-react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+
+import { Trophy, Users, Shield, GitBranch, BarChart3, Star, Layers, CalendarClock, ChevronRight, FileText } from "lucide-react";
 
 import type { TournamentStatus, SportType } from "@/constants/sports";
 
@@ -71,6 +75,8 @@ const PublicBracketPage = () => {
   const [showChampion, setShowChampion] = useState(false);
 
   const [detailMatch, setDetailMatch] = useState<Match | null>(null);
+
+  const [liveViewerMatch, setLiveViewerMatch] = useState<Match | null>(null);
 
   const { play } = useSound();
 
@@ -155,6 +161,12 @@ const PublicBracketPage = () => {
   
   const liveMatches = allMatches.filter((m) => m.status === "live" || m.status === "halftime");
   
+  // Completed matches for display
+  const completedMatches = useMemo(() =>
+  allMatches.filter((m) => m.status === "completed" && m.teamA && m.teamB),
+  [allMatches]
+  );
+  
   // Get upcoming matches
   const upcomingMatches = useMemo(() =>
   allMatches
@@ -162,6 +174,12 @@ const PublicBracketPage = () => {
   .sort((a, b) => new Date(a.scheduledDate!).getTime() - new Date(b.scheduledDate!).getTime()),
   [allMatches]
   );
+  
+  // Helper function to format date in local timezone
+  const formatLocalDate = (utcDate: string, formatStr: string) => {
+    const date = new Date(utcDate);
+    return format(date, formatStr);
+  };
   
   // Group upcoming matches by group (for group stage)
   const groupedUpcomingMatches = useMemo(() => {
@@ -193,10 +211,12 @@ const PublicBracketPage = () => {
   
   // For knockout stage or non-group tournaments
   const hasUpcoming = upcomingMatches.length > 0;
+  const hasCompleted = completedMatches.length > 0;
   
   // Count total tabs
-  const tabCount = (isGroupKnockout ? 1 : 0) + (hasUpcoming ? 1 : 0) + 4;
+  const tabCount = (isGroupKnockout ? 1 : 0) + (hasUpcoming ? 1 : 0) + (hasCompleted ? 1 : 0) + 4;
   const getTabGridCols = () => {
+    if (tabCount === 7) return "grid-cols-7";
     if (tabCount === 6) return "grid-cols-6";
     if (tabCount === 5) return "grid-cols-5";
     return "grid-cols-4";
@@ -274,7 +294,7 @@ const PublicBracketPage = () => {
           <div
             key={match.id}
             className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 rounded-lg border border-green-500/30 bg-green-500/5 px-3 py-2 sm:px-4 sm:py-2.5 cursor-pointer hover:bg-green-500/10 transition-colors"
-            onClick={() => { if (match.status === "completed") setDetailMatch(match); }}
+            onClick={() => { setLiveViewerMatch(match); }}
           >
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-green-400 animate-pulse shrink-0" />
@@ -290,7 +310,7 @@ const PublicBracketPage = () => {
     )}
 
     {/* Tabs Section */}
-    <Tabs defaultValue={isGroupKnockout ? "groups" : (hasUpcoming ? "upcoming" : "bracket")}>
+    <Tabs defaultValue={isGroupKnockout ? "groups" : (hasUpcoming ? "upcoming" : (hasCompleted ? "completed" : "bracket"))}>
       {/* Horizontal scrollable tabs for mobile */}
       <div className="overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0">
         <TabsList className={`inline-flex min-w-max sm:w-full gap-1 sm:gap-2 ${getTabGridCols()}`}>
@@ -308,6 +328,16 @@ const PublicBracketPage = () => {
               <span className="xs:hidden">Fixtures</span>
               <Badge variant="secondary" className="ml-0.5 sm:ml-1 px-1 py-0 text-[9px] sm:text-[10px]">
                 {upcomingMatches.length}
+              </Badge>
+            </TabsTrigger>
+          )}
+          {hasCompleted && (
+            <TabsTrigger value="completed" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm px-2 sm:px-3">
+              <FileText className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden xs:inline">Results</span>
+              <span className="xs:hidden">Results</span>
+              <Badge variant="secondary" className="ml-0.5 sm:ml-1 px-1 py-0 text-[9px] sm:text-[10px]">
+                {completedMatches.length}
               </Badge>
             </TabsTrigger>
           )}
@@ -333,6 +363,62 @@ const PublicBracketPage = () => {
           </TabsTrigger>
         </TabsList>
       </div>
+
+      {/* ── Completed Matches Tab ── */}
+      {hasCompleted && (
+        <TabsContent value="completed" className="mt-3 sm:mt-4">
+          <div className="space-y-2 sm:space-y-3">
+            <p className="text-xs text-muted-foreground">
+              {completedMatches.length} completed match{completedMatches.length !== 1 ? "es" : ""}
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:gap-3">
+              {completedMatches.map((match) => (
+                <div
+                  key={match.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between rounded-lg border border-border/50 bg-muted/20 p-3 sm:px-4 sm:py-3 gap-2 cursor-pointer hover:border-primary/30 transition-colors"
+                  onClick={() => setDetailMatch(match)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: match.teamA?.color ?? "#3b82f6" }}
+                        />
+                        <span className="text-sm font-semibold">{match.teamA?.name ?? "TBD"}</span>
+                      </div>
+                      <span className="text-xs font-bold tabular-nums">
+                        {match.scoreA ?? 0} - {match.scoreB ?? 0}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: match.teamB?.color ?? "#a855f7" }}
+                        />
+                        <span className="text-sm font-semibold">{match.teamB?.name ?? "TBD"}</span>
+                      </div>
+                    </div>
+                    {match.winnerId && (
+                      <p className="text-[10px] text-yellow-400 mt-0.5">
+                        🏆 Winner: {match.winnerId === match.teamA?.id ? match.teamA?.name : match.teamB?.name}
+                      </p>
+                    )}
+                    {match.events && match.events.length > 0 && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        📋 {match.events.length} event{match.events.length !== 1 ? "s" : ""} recorded
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 text-xs sm:text-sm bg-background/50 rounded-full px-2 sm:px-3 py-1 sm:py-1.5 self-start sm:self-center">
+                    <FileText className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary" />
+                    <span>View Details</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+      )}
 
       {/* ── Upcoming Fixtures Tab - Grouped by Group ── */}
       {hasUpcoming && (
@@ -385,14 +471,14 @@ const PublicBracketPage = () => {
                               </div>
                             </div>
                             
-                            {/* Date & Time */}
+                            {/* Date & Time - using local timezone */}
                             <div className="flex items-center gap-2 bg-background/50 rounded-full px-3 py-1.5 self-start sm:self-center">
                               <CalendarClock className="h-3.5 w-3.5 text-primary" />
                               <span className="text-xs font-medium whitespace-nowrap">
-                                {format(new Date(match.scheduledDate!), "EEE, MMM d")}
+                                {formatLocalDate(match.scheduledDate!, "EEE, MMM d")}
                               </span>
                               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                {format(new Date(match.scheduledDate!), "h:mm a")}
+                                {formatLocalDate(match.scheduledDate!, "h:mm a")}
                               </span>
                             </div>
                           </div>
@@ -439,10 +525,10 @@ const PublicBracketPage = () => {
                     <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 text-xs sm:text-sm bg-background/50 rounded-full px-2 sm:px-3 py-1 sm:py-1.5 self-start sm:self-center">
                       <CalendarClock className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary" />
                       <span className="font-medium">
-                        {format(new Date(match.scheduledDate!), "EEE, MMM d")}
+                        {formatLocalDate(match.scheduledDate!, "EEE, MMM d")}
                       </span>
                       <span className="text-muted-foreground">
-                        {format(new Date(match.scheduledDate!), "h:mm a")}
+                        {formatLocalDate(match.scheduledDate!, "h:mm a")}
                       </span>
                     </div>
                   </div>
@@ -481,7 +567,13 @@ const PublicBracketPage = () => {
           </div>
         ) : bracket ? (
           <div className="overflow-x-auto pb-2">
-            <BracketView bracket={bracket} onMatchClick={(match) => { if (match.status === "completed") setDetailMatch(match); }} />
+            <BracketView bracket={bracket} onMatchClick={(match) => { 
+              if (match.status === "live" || match.status === "halftime") {
+                setLiveViewerMatch(match);
+              } else {
+                setDetailMatch(match);
+              }
+            }} />
           </div>
         ) : (
           <EmptyState
@@ -602,7 +694,21 @@ const PublicBracketPage = () => {
     </Tabs>
   </div>
 
+  {/* Match Detail Modal - Shows events for completed matches */}
   <MatchDetailModal match={detailMatch} open={!!detailMatch} onClose={() => setDetailMatch(null)} />
+  
+  {/* Live Match Viewer - Shows real-time updates for live matches */}
+  <Sheet open={!!liveViewerMatch} onOpenChange={() => setLiveViewerMatch(null)}>
+    <SheetContent className="sm:max-w-md p-0 overflow-y-auto" side="bottom">
+      {liveViewerMatch && tournament && (
+        <LiveMatchViewer 
+          match={liveViewerMatch} 
+          sport={tournament.sport as SportType}
+          onClose={() => setLiveViewerMatch(null)}
+        />
+      )}
+    </SheetContent>
+  </Sheet>
   </div>
   );
 };

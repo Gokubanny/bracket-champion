@@ -106,16 +106,25 @@ const MatchCard = ({
   const hasEvents = (match.events?.length ?? 0) > 0;
   const bothTeams = match.teamA != null && match.teamB != null;
 
+  // Convert UTC from backend to local datetime-local format for display
+  const getLocalDisplayDate = (utcDate: string | null | undefined): string => {
+    if (!utcDate) return "";
+    const date = new Date(utcDate);
+    // Adjust to local timezone for display in input
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   // Local state for date picker
   const [localDate, setLocalDate] = useState<string>(
-    match.scheduledDate
-      ? format(new Date(match.scheduledDate), "yyyy-MM-dd'T'HH:mm")
-      : ""
+    getLocalDisplayDate(match.scheduledDate)
   );
 
-  const hasChanges = localDate !== (match.scheduledDate
-    ? format(new Date(match.scheduledDate), "yyyy-MM-dd'T'HH:mm")
-    : "");
+  const hasChanges = localDate !== getLocalDisplayDate(match.scheduledDate);
 
   const clickable =
     isAdminActive && match.status !== "bye" && bothTeams && !isLive;
@@ -170,6 +179,12 @@ const MatchCard = ({
     if (onDateSave && localDate) {
       onDateSave(match.id, localDate);
     }
+  };
+
+  // Format display date for viewers
+  const formatDisplayDate = (utcDate: string) => {
+    const date = new Date(utcDate);
+    return format(date, "MMM d, yyyy h:mm a");
   };
 
   return (
@@ -273,7 +288,7 @@ const MatchCard = ({
                 <Calendar className="h-3 w-3" />
                 <span>Scheduled:</span>
               </div>
-              <span>{format(new Date(match.scheduledDate), "MMM d, yyyy h:mm a")}</span>
+              <span>{formatDisplayDate(match.scheduledDate)}</span>
             </div>
           )}
         </div>
@@ -572,10 +587,14 @@ const ManageTournament = () => {
     },
   });
 
-  // Match date update mutation
+  // Match date update mutation - store in UTC
   const updateMatchDateMutation = useMutation({
-    mutationFn: ({ matchId, scheduledDate }: { matchId: string; scheduledDate: string }) =>
-      matchService.updateMatch(matchId, { scheduledDate }),
+    mutationFn: ({ matchId, scheduledDate }: { matchId: string; scheduledDate: string }) => {
+      // Convert local datetime to UTC ISO string for storage
+      const localDate = new Date(scheduledDate);
+      const utcISOString = localDate.toISOString();
+      return matchService.updateMatch(matchId, { scheduledDate: utcISOString });
+    },
     onSuccess: () => {
       toast.success("Match date saved!");
       invalidateAll();
