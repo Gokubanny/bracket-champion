@@ -86,6 +86,12 @@ export const socketService = {
     return () => { socket?.off("tournament:completed", callback); };
   },
 
+  // NEW: Standings updated listener
+  onStandingsUpdated: (callback: (data: unknown) => void) => {
+    socket?.on("standings:updated", callback);
+    return () => { socket?.off("standings:updated", callback); };
+  },
+
   // Manual reconnect method
   reconnect: () => {
     console.log("Manually reconnecting socket...");
@@ -110,22 +116,18 @@ function setupEventListeners() {
   socket.on("connect", () => {
     console.log("🔌 Socket connected:", socket.id);
     reconnectAttempts = 0;
-    // Re-join tournaments after reconnection? This should be handled by your components
     socket?.emit("client:ready", { socketId: socket.id });
   });
 
   socket.on("disconnect", (reason) => {
     console.log("🔌 Socket disconnected:", reason);
     
-    // Handle specific disconnect reasons
     if (reason === "io server disconnect") {
-      // Server disconnected, need to reconnect manually
       console.log("Server initiated disconnect, reconnecting...");
       setTimeout(() => {
         socket?.connect();
       }, 1000);
     }
-    // "transport close" and "ping timeout" will trigger auto-reconnect
   });
 
   socket.on("connect_error", (error) => {
@@ -153,7 +155,6 @@ function setupEventListeners() {
     console.error("Reconnection failed permanently");
   });
 
-  // Server heartbeat response
   socket.on("pong", () => {
     console.log("💓 Heartbeat received from server");
   });
@@ -164,11 +165,10 @@ function startHeartbeat() {
   
   heartbeatInterval = setInterval(() => {
     if (socket?.connected) {
-      // Send custom heartbeat to keep connection alive
       socket.emit("heartbeat");
       console.log("💓 Heartbeat sent to server");
     }
-  }, 25000); // Send every 25 seconds
+  }, 25000);
 }
 
 function stopHeartbeat() {

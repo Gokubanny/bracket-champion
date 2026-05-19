@@ -114,33 +114,53 @@ const PublicBracketPage = () => {
   });
   
   useEffect(() => {
-  if (!tournament?.id) return;
-  socketService.connect();
-  socketService.joinTournament(tournament.id);
-  const unsub1 = socketService.onMatchResultConfirmed(() => {
-  play("whistle", { volume: 0.4 });
-  setTimeout(() => play("cheer", { volume: 0.3 }), 250);
-  refetchBracket(); refetchLeaderboard(); refetchTopScorers(); refetchGroups();
-  });
-  const unsub2 = socketService.onTournamentCompleted(() => {
-  setShowChampion(true);
-  play("champion", { volume: 0.5 });
-  confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-  });
-  const socket = socketService.getSocket();
-  const onLiveUpdate = () => { refetchBracket(); refetchGroups(); };
-  socket?.on("match:liveUpdate", onLiveUpdate);
-  socket?.on("match:phaseChange", onLiveUpdate);
-  socket?.on("match:started", onLiveUpdate);
-  socket?.on("match:scheduled", onLiveUpdate);
-  return () => {
-  unsub1(); unsub2();
-  socket?.off("match:liveUpdate", onLiveUpdate);
-  socket?.off("match:phaseChange", onLiveUpdate);
-  socket?.off("match:started", onLiveUpdate);
-  socket?.off("match:scheduled", onLiveUpdate);
-  socketService.leaveTournament(tournament.id);
-  };
+    if (!tournament?.id) return;
+    socketService.connect();
+    socketService.joinTournament(tournament.id);
+    
+    const unsub1 = socketService.onMatchResultConfirmed(() => {
+      play("whistle", { volume: 0.4 });
+      setTimeout(() => play("cheer", { volume: 0.3 }), 250);
+      refetchBracket();
+      refetchLeaderboard();
+      refetchTopScorers();
+      refetchGroups();
+    });
+    
+    const unsub2 = socketService.onTournamentCompleted(() => {
+      setShowChampion(true);
+      play("champion", { volume: 0.5 });
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    });
+    
+    // NEW: Listen for standings updates
+    const unsub3 = socketService.onStandingsUpdated(() => {
+      console.log("📊 Standings updated, refreshing...");
+      refetchLeaderboard();
+      refetchGroups();
+    });
+    
+    const socket = socketService.getSocket();
+    const onLiveUpdate = () => { 
+      refetchBracket(); 
+      refetchGroups(); 
+    };
+    
+    socket?.on("match:liveUpdate", onLiveUpdate);
+    socket?.on("match:phaseChange", onLiveUpdate);
+    socket?.on("match:started", onLiveUpdate);
+    socket?.on("match:scheduled", onLiveUpdate);
+    
+    return () => {
+      unsub1();
+      unsub2();
+      unsub3(); // ← Add cleanup
+      socket?.off("match:liveUpdate", onLiveUpdate);
+      socket?.off("match:phaseChange", onLiveUpdate);
+      socket?.off("match:started", onLiveUpdate);
+      socket?.off("match:scheduled", onLiveUpdate);
+      socketService.leaveTournament(tournament.id);
+    };
   }, [tournament?.id, refetchBracket, refetchLeaderboard, refetchTopScorers, refetchGroups, play]);
   
   const approvedTeams = teams?.filter((t) => t.status === "approved") ?? [];

@@ -1,5 +1,6 @@
 const Match = require("../models/Match.model");
 const Team = require("../models/Team.model");
+const Group = require("../models/Group.model");
 
 const buildStatsMap = (teams) => {
   const map = {};
@@ -92,27 +93,43 @@ const computeLeaderboard = async (tournamentId, sport) => {
 };
 
 /**
- * Group-specific standings
+ * Group-specific standings - RECALCULATED from matches, not cached
  */
 const computeGroupStandings = async (groupId) => {
-  const Group = require("../models/Group.model");
-  const group = await Group.findById(groupId).lean();
+  const group = await Group.findById(groupId).populate("teams").lean();
   if (!group) return [];
 
-  const teams = await Team.find({
-    _id: { $in: group.teams },
-    status: "approved",
-  }).lean();
-
+  const groupTeams = group.teams || [];
+  
+  // Get all completed matches for this group
   const completedMatches = await Match.find({
     groupId,
     status: "completed",
     isBye: false,
   }).lean();
 
-  const statsMap = buildStatsMap(teams);
+  const statsMap = buildStatsMap(groupTeams);
   completedMatches.forEach((m) => applyMatch(statsMap, m));
   return sortAndRank(statsMap);
 };
 
-module.exports = { computeLeaderboard, computeGroupStandings };
+/**
+ * Update all groups for a tournament
+ */
+const updateAllGroupStandings = async (tournamentId) => {
+  const groups = await Group.find({ tournamentId });
+  const results = {};
+  
+  for (const group of groups) {
+    const standings = await computeGroupStandings(group._id);
+    results[group._id] = standings;
+  }
+  
+  return results;
+};
+
+module.exports = { 
+  computeLeaderboard, 
+  computeGroupStandings,
+  updateAllGroupStandings 
+};

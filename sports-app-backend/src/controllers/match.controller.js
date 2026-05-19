@@ -3,6 +3,7 @@ const Tournament = require("../models/Tournament.model");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { emitToTournament } = require("../socket");
 const { computeLeaderboard } = require("../utils/leaderboard");
+const { updateAllGroupStandings } = require("../utils/leaderboard");
 
 const SCORE_AFFECTING_EVENTS = ["goal", "penalty_goal"];
 const OWN_GOAL_EVENTS = ["own_goal"];
@@ -83,6 +84,7 @@ const confirmResult = asyncHandler(async (req, res) => {
   match.matchPhase = "full_time";
   match.confirmedAt = new Date();
   await match.save();
+  
   if (!isDrawn && match.stage === "knockout" && match.nextMatchId) {
     const nextMatch = await Match.findById(match.nextMatchId);
     if (nextMatch) {
@@ -97,6 +99,7 @@ const confirmResult = asyncHandler(async (req, res) => {
       await nextMatch.save();
     }
   }
+  
   if (match.stage === "knockout") {
     const pendingKnockout = await Match.countDocuments({
       tournamentId: tournament._id, stage: "knockout",
@@ -108,11 +111,33 @@ const confirmResult = asyncHandler(async (req, res) => {
       emitToTournament(tournament._id.toString(), "tournament:completed", { tournamentId: tournament._id, championId: match.winnerId });
     }
   }
+  
+  // Compute leaderboard
   const leaderboard = await computeLeaderboard(tournament._id, tournament.sport);
+  
+  // Refresh group standings if this is a group stage match
+  if (match.stage === "group" && match.groupId) {
+    await updateAllGroupStandings(tournament._id);
+    console.log(`📊 Refreshed group standings for tournament ${tournament._id}`);
+  }
+  
+  // Emit updates to all connected clients
   emitToTournament(tournament._id.toString(), "match:resultConfirmed", {
-    matchId: match._id, scoreA: match.teamA.score, scoreB: match.teamB.score,
-    winnerId: match.winnerId, isDraw: match.isDraw, nextMatchId: match.nextMatchId, leaderboard,
+    matchId: match._id, 
+    scoreA: match.teamA.score, 
+    scoreB: match.teamB.score,
+    winnerId: match.winnerId, 
+    isDraw: match.isDraw, 
+    nextMatchId: match.nextMatchId, 
+    leaderboard,
   });
+  
+  // Also emit a specific event for standings refresh
+  emitToTournament(tournament._id.toString(), "standings:updated", {
+    tournamentId: tournament._id,
+    leaderboard,
+  });
+  
   res.json({ success: true, message: "Result confirmed. Bracket updated.", data: { match, winnerId: match.winnerId, leaderboard } });
 });
 

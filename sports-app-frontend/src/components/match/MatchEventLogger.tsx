@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Goal } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MatchEventLoggerProps {
@@ -19,12 +19,26 @@ interface MatchEventLoggerProps {
   teamBName: string;
 }
 
-const EVENT_LABELS: Record<MatchEventType, { label: string; emoji: string; color: string }> = {
+// Expanded to include all possible event types
+const EVENT_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
   goal:        { label: "Goal",        emoji: "⚽", color: "text-green-400" },
+  own_goal:    { label: "Own Goal",    emoji: "🥅", color: "text-red-400" },
+  penalty_goal: { label: "Penalty",    emoji: "🎯", color: "text-green-400" },
   assist:      { label: "Assist",      emoji: "🅰️", color: "text-blue-400" },
   yellow_card: { label: "Yellow Card", emoji: "🟨", color: "text-yellow-400" },
   red_card:    { label: "Red Card",    emoji: "🟥", color: "text-red-400" },
+  substitution: { label: "Substitution", emoji: "🔄", color: "text-purple-400" },
+  basket_2pt:  { label: "2 Points",    emoji: "🏀", color: "text-orange-400" },
+  basket_3pt:  { label: "3 Points",    emoji: "🏀", color: "text-orange-400" },
+  free_throw:  { label: "Free Throw",  emoji: "🎯", color: "text-orange-400" },
+  foul:        { label: "Foul",        emoji: "⚠️", color: "text-yellow-400" },
+  technical_foul: { label: "Tech Foul", emoji: "⚠️", color: "text-red-400" },
+  point:       { label: "Point",       emoji: "🎾", color: "text-green-400" },
+  ace:         { label: "Ace",         emoji: "🎾", color: "text-green-400" },
+  block:       { label: "Block",       emoji: "🛡️", color: "text-blue-400" },
 };
+
+const DEFAULT_EVENT = { emoji: "⚽", label: "Event", color: "text-white" };
 
 const EMPTY_EVENT: Omit<MatchEvent, "id"> = {
   type: "goal",
@@ -43,7 +57,7 @@ const MatchEventLogger: React.FC<MatchEventLoggerProps> = ({
 
   const addEvent = () => {
     if (!draft.player.trim()) return;
-    onChange([...events, { ...draft }]);
+    onChange([...events, { ...draft, id: crypto.randomUUID?.() || Date.now().toString() }]);
     setDraft({ ...EMPTY_EVENT });
   };
 
@@ -51,7 +65,10 @@ const MatchEventLogger: React.FC<MatchEventLoggerProps> = ({
     onChange(events.filter((_, i) => i !== index));
   };
 
-  const sorted = [...events].sort((a, b) => a.minute - b.minute);
+  const sorted = [...events].sort((a, b) => (a.minute || 0) - (b.minute || 0));
+
+  // Get available event types for select (common ones)
+  const availableEventTypes = ["goal", "assist", "yellow_card", "red_card"];
 
   return (
     <div className="space-y-3">
@@ -69,11 +86,14 @@ const MatchEventLogger: React.FC<MatchEventLoggerProps> = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(EVENT_LABELS) as MatchEventType[]).map((t) => (
-                <SelectItem key={t} value={t} className="text-xs">
-                  {EVENT_LABELS[t].emoji} {EVENT_LABELS[t].label}
-                </SelectItem>
-              ))}
+              {availableEventTypes.map((t) => {
+                const cfg = EVENT_LABELS[t] || DEFAULT_EVENT;
+                return (
+                  <SelectItem key={t} value={t} className="text-xs">
+                    {cfg.emoji} {cfg.label}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
 
@@ -129,10 +149,10 @@ const MatchEventLogger: React.FC<MatchEventLoggerProps> = ({
       {sorted.length > 0 && (
         <div className="space-y-1.5 max-h-40 overflow-y-auto scrollbar-thin pr-1">
           {sorted.map((ev, i) => {
-            const cfg = EVENT_LABELS[ev.type];
+            const cfg = EVENT_LABELS[ev.type] || DEFAULT_EVENT;
             return (
               <div
-                key={i}
+                key={ev.id || i}
                 className="flex items-center justify-between bg-muted/40 rounded-md px-3 py-1.5 text-xs"
               >
                 <span className="font-mono text-muted-foreground w-10">
@@ -145,16 +165,7 @@ const MatchEventLogger: React.FC<MatchEventLoggerProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    const original = events.findIndex(
-                      (e) =>
-                        e.type === ev.type &&
-                        e.player === ev.player &&
-                        e.minute === ev.minute &&
-                        e.team === ev.team
-                    );
-                    removeEvent(original);
-                  }}
+                  onClick={() => removeEvent(i)}
                   className="text-muted-foreground hover:text-destructive transition-colors"
                 >
                   <Trash2 className="h-3 w-3" />
