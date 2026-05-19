@@ -18,6 +18,13 @@ const { errorHandler } = require("./middleware/errorHandler");
 const app = express();
 const server = http.createServer(app);
 
+// Increase server timeout to prevent premature disconnections on Render
+// This is CRITICAL for Socket.IO stability
+server.timeout = 120000; // 2 minutes (default was 2 minutes, but setting explicitly)
+server.keepAliveTimeout = 65000; // 65 seconds (Render requires > 60 seconds)
+server.headersTimeout = 66000; // 66 seconds (must be > keepAliveTimeout)
+
+// Initialize Socket.IO with improved settings
 initSocket(server);
 connectDB();
 
@@ -26,6 +33,7 @@ const allowedOrigins = [
   "https://arenax-frontend.onrender.com",
   "http://localhost:8080",
   "http://localhost:5173",
+  "http://localhost:3000",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
@@ -44,6 +52,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+
+// Request timeout middleware (optional but helpful)
+app.use((req, res, next) => {
+  req.setTimeout(60000, () => {
+    res.status(408).json({ success: false, message: "Request timeout" });
+  });
+  next();
+});
 
 app.get("/", (req, res) => res.json({ message: "ArenaX API is running", version: "2.0.0", status: "active" }));
 app.get("/api", (req, res) =>
@@ -82,6 +98,25 @@ server.listen(PORT, () => {
   console.log(`📍 API: http://localhost:${PORT}/api`);
   console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
   console.log(`🌐 CORS: ${process.env.NODE_ENV === "production" ? "strict" : "open (dev)"}`);
+  console.log(`⏱️ Server timeout: ${server.timeout}ms`);
+  console.log(`💓 Keep-alive timeout: ${server.keepAliveTimeout}ms`);
+});
+
+// Graceful shutdown handling
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, closing server...");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received, closing server...");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
 });
 
 module.exports = app;
