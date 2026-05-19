@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { Trophy, LogOut, Menu, X, Search, ChevronDown, Newspaper } from "lucide-react";
+import { Trophy, LogOut, Menu, X, Search, ChevronDown, Newspaper, Flame } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import SoundToggle from "@/components/ui/SoundToggle";
@@ -52,6 +52,14 @@ const Navbar = () => {
             >
               <Newspaper className="h-3.5 w-3.5" />
               Spotlight
+            </Link>
+            <Link
+              to="/live"
+              data-active={isActive("/live")}
+              className="story-link text-sm text-muted-foreground hover:text-foreground px-3 py-2 transition-colors flex items-center gap-1.5"
+            >
+              <Flame className="h-3.5 w-3.5" />
+              Live
             </Link>
           </div>
         </div>
@@ -113,6 +121,9 @@ const Navbar = () => {
           </Link>
           <Link to="/spotlight" onClick={() => setMobileOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-2">
             Spotlight
+          </Link>
+          <Link to="/live" onClick={() => setMobileOpen(false)} className="block text-sm text-muted-foreground hover:text-foreground py-2">
+            Live
           </Link>
           {user ? (
             <>

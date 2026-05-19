@@ -23,6 +23,7 @@ import AllTournaments from "./pages/admin/AllTournaments";
 import ManageTournament from "./pages/admin/ManageTournament";
 import PublicBracketPage from "./pages/viewer/PublicBracketPage";
 import ViewerDashboard from "./pages/viewer/ViewerDashboard";
+import LiveMatchCenter from "./pages/LiveMatchCenter";
 
 // Spotlight imports
 import SpotlightIndex from "./pages/Spotlight/SpotlightIndex";
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/tournaments" element={<BrowseTournaments />} />
+              <Route path="/live" element={<LiveMatchCenter />} />
               <Route path="/sports/:sport" element={<SportInfoPage />} />
               <Route path="/join/:inviteCode" element={<JoinTournament />} />
               <Route path="/tournament/:inviteCode" element={<PublicBracketPage />} />

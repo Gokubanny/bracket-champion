@@ -13,6 +13,7 @@ const teamRoutes = require("./routes/team.routes");
 const matchRoutes = require("./routes/match.routes");
 const leaderboardRoutes = require("./routes/leaderboard.routes");
 const sportConfigRoutes = require("./routes/sportConfig.routes");
+const matchCenterRoutes = require("./routes/matchCenter.routes");
 const { errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
@@ -76,6 +77,7 @@ app.get("/api", (req, res) =>
     },
   })
 );
+app.use("/api/matches", matchCenterRoutes);
 app.get("/api/health", (req, res) =>
   res.json({ status: "ok", message: "Server is running", timestamp: new Date().toISOString() })
 );
@@ -84,6 +86,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/tournaments", tournamentRoutes);
 app.use("/api/teams", teamRoutes);
 app.use("/api/matches", matchRoutes);
+app.use("/api/matches", matchCenterRoutes); 
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/sport-config", sportConfigRoutes);
 
