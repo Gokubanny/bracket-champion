@@ -40,7 +40,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 
-import { Trophy, Users, Shield, GitBranch, BarChart3, Star, Layers, CalendarClock } from "lucide-react";
+import { Trophy, Users, Shield, GitBranch, BarChart3, Star, Layers, CalendarClock, ChevronRight } from "lucide-react";
 
 import type { TournamentStatus, SportType } from "@/constants/sports";
 
@@ -55,6 +55,12 @@ import { useSound } from "@/context/SoundContext";
 import { Badge } from "@/components/ui/badge";
 
 import { format } from "date-fns";
+
+interface GroupedMatches {
+  groupName: string;
+  groupId: string;
+  matches: Match[];
+}
 
 const PublicBracketPage = () => {
 
@@ -95,11 +101,12 @@ const PublicBracketPage = () => {
   queryFn: () => tournamentService.getTopScorers(tournament!.id),
   enabled: !!tournament?.id,
   });
-  const { data: groups, isLoading: groupsLoading, refetch: refetchGroups } = useQuery({
+  const { data: groupsData, isLoading: groupsLoading, refetch: refetchGroups } = useQuery({
   queryKey: ["tournament-groups-public", tournament?.id],
   queryFn: () => tournamentService.getGroups(tournament!.id),
   enabled: !!tournament?.id && tournament?.structure === "group_knockout",
   });
+  
   useEffect(() => {
   if (!tournament?.id) return;
   socketService.connect();
@@ -129,6 +136,7 @@ const PublicBracketPage = () => {
   socketService.leaveTournament(tournament.id);
   };
   }, [tournament?.id, refetchBracket, refetchLeaderboard, refetchTopScorers, refetchGroups, play]);
+  
   const approvedTeams = teams?.filter((t) => t.status === "approved") ?? [];
   const sportConfig = tournament ? SPORTS[tournament.sport as SportType] : undefined;
   const SportIcon = sportConfig?.icon;
@@ -139,22 +147,55 @@ const PublicBracketPage = () => {
   const champion = finalMatch?.winnerId
   ? finalMatch.teamA?.id === finalMatch.winnerId ? finalMatch.teamA : finalMatch.teamB
   : null;
+  
   const allMatches = useMemo(() => [
-  ...(groups?.flatMap((g) => g.matches) ?? []),
+  ...(groupsData?.flatMap((g) => g.matches) ?? []),
   ...(bracket?.rounds.flat() ?? []),
-  ], [groups, bracket]);
+  ], [groupsData, bracket]);
+  
   const liveMatches = allMatches.filter((m) => m.status === "live" || m.status === "halftime");
-  // Upcoming matches that have a scheduled date set
-  const upcomingScheduled = useMemo(() =>
+  
+  // Get upcoming matches
+  const upcomingMatches = useMemo(() =>
   allMatches
   .filter((m) => (m.status === "upcoming" || m.status === "pending") && m.scheduledDate && m.teamA && m.teamB)
   .sort((a, b) => new Date(a.scheduledDate!).getTime() - new Date(b.scheduledDate!).getTime()),
   [allMatches]
   );
   
+  // Group upcoming matches by group (for group stage)
+  const groupedUpcomingMatches = useMemo(() => {
+    if (!isGroupKnockout || !groupsData) {
+      return null;
+    }
+    
+    const groupsMap = new Map<string, GroupedMatches>();
+    
+    // Initialize groups
+    groupsData.forEach((group) => {
+      groupsMap.set(group.id, {
+        groupName: group.name,
+        groupId: group.id,
+        matches: [],
+      });
+    });
+    
+    // Add matches to their respective groups
+    upcomingMatches.forEach((match) => {
+      if (match.groupId && groupsMap.has(match.groupId)) {
+        groupsMap.get(match.groupId)!.matches.push(match);
+      }
+    });
+    
+    // Convert to array and filter out groups with no upcoming matches
+    return Array.from(groupsMap.values()).filter((group) => group.matches.length > 0);
+  }, [isGroupKnockout, groupsData, upcomingMatches]);
+  
+  // For knockout stage or non-group tournaments
+  const hasUpcoming = upcomingMatches.length > 0;
+  
   // Count total tabs
-  const hasUpcoming = upcomingScheduled.length > 0;
-  const tabCount = (isGroupKnockout ? 1 : 0) + (hasUpcoming ? 1 : 0) + 4; // groups? + upcoming? + bracket + standings + scorers + teams
+  const tabCount = (isGroupKnockout ? 1 : 0) + (hasUpcoming ? 1 : 0) + 4;
   const getTabGridCols = () => {
     if (tabCount === 6) return "grid-cols-6";
     if (tabCount === 5) return "grid-cols-5";
@@ -179,6 +220,7 @@ const PublicBracketPage = () => {
   </div>
   );
   }
+  
   return (
   <div className="animate-fade-in">
   {/* Banner - responsive height */}
@@ -265,7 +307,7 @@ const PublicBracketPage = () => {
               <span className="hidden xs:inline">Upcoming</span>
               <span className="xs:hidden">Fixtures</span>
               <Badge variant="secondary" className="ml-0.5 sm:ml-1 px-1 py-0 text-[9px] sm:text-[10px]">
-                {upcomingScheduled.length}
+                {upcomingMatches.length}
               </Badge>
             </TabsTrigger>
           )}
@@ -292,16 +334,89 @@ const PublicBracketPage = () => {
         </TabsList>
       </div>
 
-      {/* ── Upcoming Fixtures Tab ── */}
+      {/* ── Upcoming Fixtures Tab - Grouped by Group ── */}
       {hasUpcoming && (
         <TabsContent value="upcoming" className="mt-3 sm:mt-4">
-          {upcomingScheduled.length > 0 ? (
+          {isGroupKnockout && groupedUpcomingMatches && groupedUpcomingMatches.length > 0 ? (
+            <div className="space-y-5 sm:space-y-6">
+              <p className="text-xs text-muted-foreground">
+                {upcomingMatches.length} match{upcomingMatches.length !== 1 ? "es" : ""} scheduled across {groupedUpcomingMatches.length} group{groupedUpcomingMatches.length !== 1 ? "s" : ""}
+              </p>
+              
+              {/* Grouped by Group */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+                {groupedUpcomingMatches.map((group) => (
+                  <div key={group.groupId} className="space-y-3">
+                    {/* Group Header */}
+                    <div className="flex items-center gap-2 border-b border-primary/30 pb-2">
+                      <div className="h-2 w-2 rounded-full bg-primary" />
+                      <h3 className="text-base sm:text-lg font-bold text-primary">{group.groupName}</h3>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {group.matches.length} match{group.matches.length !== 1 ? "es" : ""}
+                      </Badge>
+                    </div>
+                    
+                    {/* Matches in this group */}
+                    <div className="space-y-2 sm:space-y-3">
+                      {group.matches.map((match) => (
+                        <div
+                          key={match.id}
+                          className="group relative rounded-lg border border-border/50 bg-muted/20 p-3 sm:p-4 hover:border-primary/30 transition-all duration-200"
+                        >
+                          {/* Match Teams */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className="h-2 w-2 rounded-full"
+                                    style={{ backgroundColor: match.teamA?.color ?? "#3b82f6" }}
+                                  />
+                                  <span className="text-sm sm:text-base font-semibold">{match.teamA?.name ?? "TBD"}</span>
+                                </div>
+                                <span className="text-xs text-muted-foreground font-bold">VS</span>
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className="h-2 w-2 rounded-full"
+                                    style={{ backgroundColor: match.teamB?.color ?? "#a855f7" }}
+                                  />
+                                  <span className="text-sm sm:text-base font-semibold">{match.teamB?.name ?? "TBD"}</span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Date & Time */}
+                            <div className="flex items-center gap-2 bg-background/50 rounded-full px-3 py-1.5 self-start sm:self-center">
+                              <CalendarClock className="h-3.5 w-3.5 text-primary" />
+                              <span className="text-xs font-medium whitespace-nowrap">
+                                {format(new Date(match.scheduledDate!), "EEE, MMM d")}
+                              </span>
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                {format(new Date(match.scheduledDate!), "h:mm a")}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Stage indicator */}
+                          <div className="mt-2 flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <ChevronRight className="h-2.5 w-2.5" />
+                            <span>Group Stage · {group.groupName}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            // For knockout stage or non-group tournaments
             <div className="space-y-2 sm:space-y-3">
               <p className="text-xs text-muted-foreground">
-                {upcomingScheduled.length} match{upcomingScheduled.length !== 1 ? "es" : ""} scheduled
+                {upcomingMatches.length} match{upcomingMatches.length !== 1 ? "es" : ""} scheduled
               </p>
               <div className="grid grid-cols-1 gap-2 sm:gap-3">
-                {upcomingScheduled.map((match) => (
+                {upcomingMatches.map((match) => (
                   <div
                     key={match.id}
                     className="flex flex-col sm:flex-row sm:items-center justify-between rounded-lg border border-border/50 bg-muted/20 p-3 sm:px-4 sm:py-3 gap-2"
@@ -313,9 +428,7 @@ const PublicBracketPage = () => {
                         <span className="text-sm font-semibold truncate">{match.teamB?.name ?? "TBD"}</span>
                       </div>
                       {match.stage === "group" && match.groupId && (
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          Group Stage
-                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Group Stage</p>
                       )}
                       {match.round !== undefined && match.stage === "knockout" && (
                         <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -336,12 +449,6 @@ const PublicBracketPage = () => {
                 ))}
               </div>
             </div>
-          ) : (
-            <EmptyState
-              icon={<CalendarClock className="h-8 w-8" />}
-              title="No upcoming fixtures"
-              description="Scheduled match dates will appear here once set by the admin."
-            />
           )}
         </TabsContent>
       )}
@@ -351,8 +458,8 @@ const PublicBracketPage = () => {
         <TabsContent value="groups" className="mt-3 sm:mt-4">
           {groupsLoading ? (
             <div className="space-y-3">{[1, 2].map((i) => <Skeleton key={i} className="h-48 w-full rounded-lg" />)}</div>
-          ) : groups && groups.length > 0 ? (
-            <GroupStandings groups={groups} advancingPerGroup={tournament.teamsAdvancingPerGroup} />
+          ) : groupsData && groupsData.length > 0 ? (
+            <GroupStandings groups={groupsData} advancingPerGroup={tournament.teamsAdvancingPerGroup} />
           ) : (
             <EmptyState icon={<Layers className="h-8 w-8" />} title="Groups not set up yet" description="The admin will assign teams to groups shortly." />
           )}
@@ -388,8 +495,8 @@ const PublicBracketPage = () => {
       <TabsContent value="leaderboard" className="mt-3 sm:mt-4">
         {leaderboardLoading || groupsLoading ? (
           <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full rounded-md" />)}</div>
-        ) : isGroupKnockout && tournament.currentStage === "group" && groups && groups.length > 0 ? (
-          <GroupStandings groups={groups} advancingPerGroup={tournament.teamsAdvancingPerGroup} />
+        ) : isGroupKnockout && tournament.currentStage === "group" && groupsData && groupsData.length > 0 ? (
+          <GroupStandings groups={groupsData} advancingPerGroup={tournament.teamsAdvancingPerGroup} />
         ) : leaderboard && leaderboard.length > 0 ? (
           <div className="overflow-x-auto">
             <LeaderboardTable entries={leaderboard} sport={tournament.sport as SportType} showDraws={sportConfig?.allowDraw} />
