@@ -1,16 +1,27 @@
 const express = require("express");
 const router = express.Router();
 const {
-  getMatchesByTournament, getMatch,
-  enterScore, confirmResult, editResult, updateEvents,
+  getMatchesByTournament,
+  getMatch,
+  enterScore,
+  confirmResult,
+  editResult,
+  updateEvents,
   scheduleMatch,
-  startMatch, movePhase, addLiveEvent, updateLiveScore,
+  startMatch,
+  movePhase,
+  addLiveEvent,
+  updateLiveScore,
+  updateMatch, // ← Add this import
 } = require("../controllers/match.controller");
 const { protect, restrictTo } = require("../middleware/auth.middleware");
 
 // Public
 router.get("/tournament/:tournamentId", getMatchesByTournament);
 router.get("/:id", getMatch);
+
+// Admin — update match details (scheduledDate, status, scores)
+router.put("/:matchId", protect, restrictTo("admin"), updateMatch);
 
 // Admin — non-live
 router.patch("/:id/score", protect, restrictTo("admin"), enterScore);

@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { tournamentService } from "@/services/tournamentService";
 import { teamService } from "@/services/teamService";
+import { matchService } from "@/services/matchService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ import LiveMatchPanel from "@/components/match/LiveMatchPanel";
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import {
   Copy, Users, Shield, AlertTriangle, Trophy, Pencil, Loader2, Image,
-  Swords, CheckCircle2, Clock, Minus, FileText, Star, Play, Layers,
+  Swords, CheckCircle2, Clock, Minus, FileText, Star, Play, Layers, Calendar,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -83,7 +84,7 @@ const MatchStatusPill = ({ status }: { status: Match["status"] }) => {
   );
 };
 
-// ── Match card ────────────────────────────────────────────────────────────────
+// ── Match card with date picker ────────────────────────────────────────────────
 interface MatchCardProps {
   match: Match;
   sport: SportType;
@@ -91,19 +92,30 @@ interface MatchCardProps {
   onMatchClick: (match: Match) => void;
   onDetailClick: (match: Match) => void;
   onLiveClick: (match: Match) => void;
+  onDateChange?: (matchId: string, date: string) => void;
+  isUpdatingDate?: boolean;
 }
 
 const MatchCard = ({
   match, sport, isAdminActive, onMatchClick, onDetailClick, onLiveClick,
+  onDateChange, isUpdatingDate,
 }: MatchCardProps) => {
   const isCompleted = match.status === "completed";
   const isLive = match.status === "live" || match.status === "halftime";
-  const isPending = match.status === "upcoming";
+  const isPending = match.status === "upcoming" || match.status === "pending";
   const hasEvents = (match.events?.length ?? 0) > 0;
   const bothTeams = match.teamA != null && match.teamB != null;
 
   const clickable =
     isAdminActive && match.status !== "bye" && bothTeams && !isLive;
+
+  const canEditDate =
+    isAdminActive &&
+    !isLive &&
+    !isCompleted &&
+    match.status !== "bye" &&
+    match.status !== "ongoing" &&
+    match.status !== "in_progress";
 
   const teamRow = (
     team: Match["teamA"],
@@ -158,46 +170,87 @@ const MatchCard = ({
           {teamRow(match.teamB, match.scoreB, !!match.winnerId && match.teamB?.id === match.winnerId)}
         </div>
 
-        <div className="px-3 py-1.5 border-t border-border/30 bg-muted/20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MatchStatusPill status={match.status} />
-            {isLive && <MatchClock match={match} sport={sport} />}
+        <div className="px-3 py-1.5 border-t border-border/30 bg-muted/20 space-y-1.5">
+          {/* Status row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MatchStatusPill status={match.status} />
+              {isLive && <MatchClock match={match} sport={sport} />}
+            </div>
+            <div className="flex items-center gap-2">
+              {isCompleted && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                  onClick={(e) => { e.stopPropagation(); onDetailClick(match); }}
+                >
+                  <FileText className="h-2.5 w-2.5" />
+                  {hasEvents ? "View details" : "Add events"}
+                </button>
+              )}
+              {isPending && isAdminActive && bothTeams && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[10px] text-green-400 hover:underline"
+                  onClick={(e) => { e.stopPropagation(); onLiveClick(match); }}
+                >
+                  <Play className="h-2.5 w-2.5" />
+                  Go Live
+                </button>
+              )}
+              {isLive && isAdminActive && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[10px] text-green-400 hover:underline"
+                  onClick={(e) => { e.stopPropagation(); onLiveClick(match); }}
+                >
+                  <Play className="h-2.5 w-2.5" />
+                  Manage Live
+                </button>
+              )}
+              {!isLive && !isPending && !isCompleted && match.status === "in_progress" && isAdminActive && (
+                <span className="text-[10px] text-muted-foreground">Click to edit</span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isCompleted && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
-                onClick={(e) => { e.stopPropagation(); onDetailClick(match); }}
-              >
-                <FileText className="h-2.5 w-2.5" />
-                {hasEvents ? "View details" : "Add events"}
-              </button>
-            )}
-            {isPending && isAdminActive && bothTeams && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-[10px] text-green-400 hover:underline"
-                onClick={(e) => { e.stopPropagation(); onLiveClick(match); }}
-              >
-                <Play className="h-2.5 w-2.5" />
-                Go Live
-              </button>
-            )}
-            {isLive && isAdminActive && (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-[10px] text-green-400 hover:underline"
-                onClick={(e) => { e.stopPropagation(); onLiveClick(match); }}
-              >
-                <Play className="h-2.5 w-2.5" />
-                Manage Live
-              </button>
-            )}
-            {!isLive && !isPending && !isCompleted && match.status === "in_progress" && isAdminActive && (
-              <span className="text-[10px] text-muted-foreground">Click to edit</span>
-            )}
-          </div>
+
+          {/* Date picker row - only for upcoming matches */}
+          {canEditDate && onDateChange && (
+            <div className="flex items-center justify-between pt-1 border-t border-border/30">
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Calendar className="h-3 w-3" />
+                <span>Match Date:</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="datetime-local"
+                  value={
+                    match.scheduledDate
+                      ? format(new Date(match.scheduledDate), "yyyy-MM-dd'T'HH:mm")
+                      : ""
+                  }
+                  onChange={(e) => onDateChange(match.id, e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[10px] px-1 py-0.5 rounded bg-background border border-border focus:outline-none focus:border-primary"
+                  disabled={isUpdatingDate}
+                />
+                {isUpdatingDate && (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Show scheduled date if exists and not editable */}
+          {match.scheduledDate && !canEditDate && (
+            <div className="flex items-center justify-between pt-1 border-t border-border/30 text-[10px] text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                <span>Scheduled:</span>
+              </div>
+              <span>{format(new Date(match.scheduledDate), "MMM d, yyyy h:mm a")}</span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -368,6 +421,7 @@ const ManageTournament = () => {
   const [detailMatch, setDetailMatch] = useState<Match | null>(null);
   const [liveMatch, setLiveMatch] = useState<Match | null>(null);
   const [showGroupSetup, setShowGroupSetup] = useState(false);
+  const [updatingMatchDate, setUpdatingMatchDate] = useState<string | null>(null);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editBanner, setEditBanner] = useState<File | null>(null);
@@ -493,6 +547,21 @@ const ManageTournament = () => {
     },
   });
 
+  // Match date update mutation
+  const updateMatchDateMutation = useMutation({
+    mutationFn: ({ matchId, scheduledDate }: { matchId: string; scheduledDate: string }) =>
+      matchService.updateMatch(matchId, { scheduledDate }),
+    onSuccess: () => {
+      toast.success("Match date updated");
+      invalidateAll();
+      setUpdatingMatchDate(null);
+    },
+    onError: (e: any) => {
+      toast.error(e?.response?.data?.message || "Failed to update match date");
+      setUpdatingMatchDate(null);
+    },
+  });
+
   const copyRegistrationLink = () => {
     if (tournament) {
       navigator.clipboard.writeText(`${window.location.origin}/join/${tournament.inviteCode}`);
@@ -517,6 +586,15 @@ const ManageTournament = () => {
   const handleScoreSuccess = () => { invalidateAll(); setSelectedMatch(null); };
   const handleDetailClose = () => { invalidateAll(); setDetailMatch(null); };
   const handleLiveSuccess = () => { invalidateAll(); };
+
+  const handleMatchDateChange = (matchId: string, scheduledDate: string) => {
+    if (!scheduledDate) {
+      toast.error("Please select a valid date and time");
+      return;
+    }
+    setUpdatingMatchDate(matchId);
+    updateMatchDateMutation.mutate({ matchId, scheduledDate });
+  };
 
   const filteredTeams = teams?.filter(
     (t) => teamFilter === "all" || t.status === teamFilter
@@ -886,6 +964,8 @@ const ManageTournament = () => {
                             onMatchClick={setSelectedMatch}
                             onDetailClick={setDetailMatch}
                             onLiveClick={setLiveMatch}
+                            onDateChange={handleMatchDateChange}
+                            isUpdatingDate={updatingMatchDate === match.id}
                           />
                         ))}
                       </div>
@@ -928,6 +1008,8 @@ const ManageTournament = () => {
                             onMatchClick={setSelectedMatch}
                             onDetailClick={setDetailMatch}
                             onLiveClick={setLiveMatch}
+                            onDateChange={handleMatchDateChange}
+                            isUpdatingDate={updatingMatchDate === match.id}
                           />
                         ))}
                       </div>

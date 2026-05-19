@@ -317,10 +317,85 @@ const updateLiveScore = asyncHandler(async (req, res) => {
   });
   res.json({ success: true, message: "Live score updated.", data: { scoreA: match.teamA.score, scoreB: match.teamB.score } });
 });
+// @desc    Update match details (scheduledDate, status, scores)
+// @route   PUT /api/matches/:matchId
+// @access  Admin
+const updateMatch = asyncHandler(async (req, res) => {
+  const { matchId } = req.params;
+  const { scheduledDate, status, scoreA, scoreB, winnerId } = req.body;
+
+  const match = await Match.findById(matchId);
+  if (!match) {
+    return res.status(404).json({ success: false, message: "Match not found." });
+  }
+
+  const tournament = await Tournament.findOne({
+    _id: match.tournamentId,
+    createdBy: req.user._id,
+  });
+  if (!tournament) {
+    return res.status(403).json({ success: false, message: "Not authorized." });
+  }
+
+  // Prevent editing after match has started
+  if (match.status === "live" || match.status === "halftime") {
+    return res.status(400).json({
+      success: false,
+      message: "Cannot edit match after it has started.",
+    });
+  }
+
+  // If match is already completed, only allow limited edits
+  if (match.status === "completed") {
+    return res.status(400).json({
+      success: false,
+      message: "Match is already completed. Use edit result instead.",
+    });
+  }
+
+  // Update allowed fields
+  if (scheduledDate !== undefined) {
+    match.scheduledDate = new Date(scheduledDate);
+  }
+  if (status !== undefined && ["pending", "ongoing"].includes(status)) {
+    match.status = status;
+  }
+  if (scoreA !== undefined) {
+    match.teamA.score = Number(scoreA);
+  }
+  if (scoreB !== undefined) {
+    match.teamB.score = Number(scoreB);
+  }
+  if (winnerId !== undefined) {
+    match.winnerId = winnerId === "null" ? null : winnerId;
+  }
+
+  await match.save();
+
+  // Populate team info for response
+  const populatedMatch = await Match.findById(match._id)
+    .populate("teamA.teamId", "name logo color")
+    .populate("teamB.teamId", "name logo color")
+    .populate("winnerId", "name logo color");
+
+  emitToTournament(tournament._id.toString(), "match:updated", {
+    matchId: match._id,
+    scheduledDate: match.scheduledDate,
+    status: match.status,
+    scoreA: match.teamA.score,
+    scoreB: match.teamB.score,
+  });
+
+  res.json({
+    success: true,
+    message: "Match updated successfully.",
+    data: { match: populatedMatch },
+  });
+});
 
 module.exports = {
   getMatchesByTournament, getMatch,
   enterScore, confirmResult, editResult, updateEvents,
   scheduleMatch,
-  startMatch, movePhase, addLiveEvent, updateLiveScore,
+  startMatch, movePhase, addLiveEvent, updateLiveScore, updateMatch,
 };

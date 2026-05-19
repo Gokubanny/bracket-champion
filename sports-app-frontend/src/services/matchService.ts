@@ -38,4 +38,19 @@ export const matchService = {
   confirmLiveResult: async (matchId: string): Promise<void> => {
     await api.patch(`/matches/${matchId}/confirm`);
   },
+
+  // NEW: Update match details (scheduledDate, status, scores)
+  updateMatch: async (
+    matchId: string,
+    data: {
+      scheduledDate?: string;
+      status?: string;
+      scoreA?: number;
+      scoreB?: number;
+      winnerId?: string | null;
+    }
+  ): Promise<any> => {
+    const response = await api.put(`/matches/${matchId}`, data);
+    return response?.data?.data?.match ?? response?.data ?? response;
+  },
 };
