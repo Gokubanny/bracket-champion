@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { SPORTS, SPORT_OPTIONS } from "@/constants/sports";
+import { SPORTS } from "@/constants/sports";
 import { cn } from "@/lib/utils";
 
 interface SportsFilterProps {
@@ -22,6 +22,7 @@ const SportsFilter: React.FC<SportsFilterProps> = ({ selectedSport, onSelectSpor
       </h3>
       <div className="flex flex-row sm:flex-col gap-1 overflow-x-auto pb-2 sm:pb-0 scrollbar-thin">
         <motion.button
+          key="filter-all"
           onClick={() => onSelectSport("all")}
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 whitespace-nowrap",
@@ -46,7 +47,7 @@ const SportsFilter: React.FC<SportsFilterProps> = ({ selectedSport, onSelectSpor
           
           return (
             <motion.button
-              key={sportKey}
+              key={`filter-${sportKey}`}
               onClick={() => onSelectSport(sportKey)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 whitespace-nowrap",

@@ -12,7 +12,7 @@ export interface LiveMatch {
     bannerUrl?: string;
   };
   teamA: {
-    teamId: {
+    teamId?: {
       _id: string;
       name: string;
       color: string;
@@ -21,7 +21,7 @@ export interface LiveMatch {
     score: number | null;
   };
   teamB: {
-    teamId: {
+    teamId?: {
       _id: string;
       name: string;
       color: string;
@@ -41,6 +41,8 @@ export interface LiveMatch {
   }>;
   currentPhaseStartedAt?: string;
   phaseTimeOffset?: number;
+  round?: number;
+  stage?: string;
 }
 
 export interface MatchCenterData {
@@ -53,7 +55,32 @@ export interface MatchCenterData {
 const fetchMatchCenter = async (sport?: string): Promise<MatchCenterData> => {
   const params = sport && sport !== "all" ? { sport } : {};
   const { data } = await api.get("/matches/live-upcoming", { params });
-  return data?.data || { live: [], upcoming: [], completed: [], sportsCount: {} };
+  
+  // Transform the data to ensure consistent structure
+  const result = data?.data || { live: [], upcoming: [], completed: [], sportsCount: {} };
+  
+  // Ensure each match has proper team data
+  return {
+    live: (result.live || []).map((match: any) => normalizeMatch(match)),
+    upcoming: (result.upcoming || []).map((match: any) => normalizeMatch(match)),
+    completed: (result.completed || []).map((match: any) => normalizeMatch(match)),
+    sportsCount: result.sportsCount || {},
+  };
+};
+
+// Helper to normalize match data
+const normalizeMatch = (match: any): LiveMatch => {
+  return {
+    ...match,
+    teamA: {
+      teamId: match.teamA?.teamId || match.teamA,
+      score: match.teamA?.score ?? match.scoreA ?? null,
+    },
+    teamB: {
+      teamId: match.teamB?.teamId || match.teamB,
+      score: match.teamB?.score ?? match.scoreB ?? null,
+    },
+  };
 };
 
 export const useLiveMatches = (selectedSport: string = "all") => {
@@ -63,7 +90,7 @@ export const useLiveMatches = (selectedSport: string = "all") => {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["matchCenter", selectedSport],
     queryFn: () => fetchMatchCenter(selectedSport),
-    refetchInterval: 30000, // Refetch every 30 seconds as fallback
+    refetchInterval: 30000,
     staleTime: 10000,
   });
 
@@ -72,23 +99,23 @@ export const useLiveMatches = (selectedSport: string = "all") => {
     const socket = socketService.getSocket();
     if (!socket) return;
 
-    const handleLiveUpdate = (updatedMatch: LiveMatch) => {
-      // Update the match in the live matches list
+    const handleLiveUpdate = (updatedMatch: any) => {
+      const normalizedMatch = normalizeMatch(updatedMatch);
+      
       setLiveMatches((prev) => {
-        const exists = prev.some((m) => m.id === updatedMatch.id);
+        const exists = prev.some((m) => m.id === normalizedMatch.id);
         if (exists) {
-          return prev.map((m) => (m.id === updatedMatch.id ? updatedMatch : m));
+          return prev.map((m) => (m.id === normalizedMatch.id ? normalizedMatch : m));
         } else {
-          return [updatedMatch, ...prev];
+          return [normalizedMatch, ...prev];
         }
       });
       
-      // Also update the React Query cache
       queryClient.setQueryData(["matchCenter", selectedSport], (oldData: MatchCenterData | undefined) => {
         if (!oldData) return oldData;
         return {
           ...oldData,
-          live: oldData.live.map((m) => (m.id === updatedMatch.id ? updatedMatch : m)),
+          live: oldData.live.map((m) => (m.id === normalizedMatch.id ? normalizedMatch : m)),
         };
       });
     };
@@ -104,7 +131,6 @@ export const useLiveMatches = (selectedSport: string = "all") => {
     };
   }, [queryClient, selectedSport]);
 
-  // Update liveMatches from query data
   useEffect(() => {
     if (data?.live) {
       setLiveMatches(data.live);

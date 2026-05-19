@@ -12,14 +12,17 @@ import LiveMatchViewer from "@/components/match/LiveMatchViewer";
 import MatchDetailModal from "@/components/match/MatchDetailModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Flame, Calendar, CheckCircle, Frown } from "lucide-react";
+import { Trophy, Flame, Calendar, CheckCircle, Frown, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const LiveMatchCenter = () => {
   const [selectedSport, setSelectedSport] = useState("all");
   const [selectedMatch, setSelectedMatch] = useState<LiveMatch | null>(null);
   const [viewerMatch, setViewerMatch] = useState<LiveMatch | null>(null);
   const [detailMatch, setDetailMatch] = useState<LiveMatch | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const { liveMatches, upcomingMatches, completedMatches, sportsCount, isLoading, refetch } = useLiveMatches(selectedSport);
   
@@ -30,7 +33,6 @@ const LiveMatchCenter = () => {
       if (socket) {
         socket.emit("view:match", viewerMatch.id);
       }
-      // Also join tournament for general updates
       if (viewerMatch.tournamentId?._id) {
         socketService.joinTournament(viewerMatch.tournamentId._id);
       }
@@ -52,6 +54,12 @@ const LiveMatchCenter = () => {
     } else {
       setDetailMatch(match);
     }
+  };
+  
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetch();
+    setTimeout(() => setIsRefreshing(false), 1000);
   };
   
   const hasLiveMatches = liveMatches.length > 0;
@@ -109,6 +117,20 @@ const LiveMatchCenter = () => {
             Follow all the action across tournaments in real-time
           </p>
         </motion.div>
+        
+        {/* Refresh Button */}
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="gap-2"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
         
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

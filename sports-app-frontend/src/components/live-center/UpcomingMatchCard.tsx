@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import type { LiveMatch } from "@/hooks/useLiveMatches";
 import { SPORTS } from "@/constants/sports";
 import type { SportType } from "@/constants/sports";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface UpcomingMatchCardProps {
   match: LiveMatch;
@@ -13,6 +14,12 @@ interface UpcomingMatchCardProps {
 const UpcomingMatchCard: React.FC<UpcomingMatchCardProps> = ({ match, onClick }) => {
   const sportConfig = SPORTS[match.tournamentId?.sport as SportType] || SPORTS.football;
   const SportIcon = sportConfig.icon;
+  
+  // Get team data safely
+  const teamA = match.teamA?.teamId || match.teamA;
+  const teamB = match.teamB?.teamId || match.teamB;
+  const tournament = match.tournamentId;
+  
   const matchDate = match.scheduledDate ? new Date(match.scheduledDate) : null;
   
   return (
@@ -29,7 +36,7 @@ const UpcomingMatchCard: React.FC<UpcomingMatchCardProps> = ({ match, onClick })
             {SportIcon && (
               <SportIcon className="h-4 w-4" style={{ color: `hsl(var(${sportConfig.colorVar}))` }} />
             )}
-            <span className="text-xs text-muted-foreground">{match.tournamentId?.name}</span>
+            <span className="text-xs text-muted-foreground">{tournament?.name}</span>
           </div>
           {matchDate && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -39,11 +46,36 @@ const UpcomingMatchCard: React.FC<UpcomingMatchCardProps> = ({ match, onClick })
           )}
         </div>
         
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium truncate">{match.teamA?.teamId?.name || "TBD"}</span>
-            <span className="text-xs text-muted-foreground">vs</span>
-            <span className="text-sm font-medium truncate">{match.teamB?.teamId?.name || "TBD"}</span>
+        <div className="space-y-2">
+          {/* Team A vs Team B in one row */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Avatar className="h-6 w-6 rounded-full shrink-0">
+                {teamA?.logo && <AvatarImage src={teamA.logo} alt={teamA?.name} />}
+                <AvatarFallback 
+                  className="text-[10px] font-bold"
+                  style={{ backgroundColor: teamA?.color ? `${teamA.color}33` : "#3b82f633" }}
+                >
+                  {teamA?.name?.slice(0, 2).toUpperCase() || "A"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium truncate">{teamA?.name || "TBD"}</span>
+            </div>
+            
+            <span className="text-xs text-muted-foreground shrink-0">vs</span>
+            
+            <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+              <span className="text-sm font-medium truncate text-right">{teamB?.name || "TBD"}</span>
+              <Avatar className="h-6 w-6 rounded-full shrink-0">
+                {teamB?.logo && <AvatarImage src={teamB.logo} alt={teamB?.name} />}
+                <AvatarFallback 
+                  className="text-[10px] font-bold"
+                  style={{ backgroundColor: teamB?.color ? `${teamB.color}33` : "#a855f733" }}
+                >
+                  {teamB?.name?.slice(0, 2).toUpperCase() || "B"}
+                </AvatarFallback>
+              </Avatar>
+            </div>
           </div>
         </div>
         

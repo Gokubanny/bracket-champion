@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Play, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LiveMatch } from "@/hooks/useLiveMatches";
 import { SPORTS } from "@/constants/sports";
 import type { SportType } from "@/constants/sports";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface LiveMatchCardProps {
   match: LiveMatch;
@@ -14,6 +15,11 @@ interface LiveMatchCardProps {
 const LiveMatchCard: React.FC<LiveMatchCardProps> = ({ match, onClick }) => {
   const [elapsedTime, setElapsedTime] = useState<string>("");
   const sportConfig = SPORTS[match.tournamentId?.sport as SportType] || SPORTS.football;
+  
+  // Get team data safely
+  const teamA = match.teamA?.teamId || match.teamA;
+  const teamB = match.teamB?.teamId || match.teamB;
+  const tournament = match.tournamentId;
   
   // Update elapsed time for live matches
   useEffect(() => {
@@ -26,21 +32,25 @@ const LiveMatchCard: React.FC<LiveMatchCardProps> = ({ match, onClick }) => {
           const elapsed = Math.floor((Date.now() - new Date(match.currentPhaseStartedAt).getTime()) / 60000);
           const total = (phase.clockOffset || 0) + elapsed;
           const mins = Math.min(total, phase.maxMinutes || 90);
-          setElapsedTime(`${mins}'`);
+          const secs = Math.floor((Date.now() - new Date(match.currentPhaseStartedAt).getTime()) / 1000) % 60;
+          setElapsedTime(`${mins}'${secs.toString().padStart(2, "0")}"`);
         }
       }
     };
     
     updateTime();
-    const interval = setInterval(updateTime, 60000);
+    const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, [match.status, match.currentPhaseStartedAt, match.matchPhase, sportConfig]);
   
-  // Get recent events (last 2)
-  const recentEvents = (match.events || []).slice(-2);
+  // Get recent events (last 3)
+  const recentEvents = (match.events || []).slice(-3);
   
   const isHalfTime = match.status === "halftime";
   const isLive = match.status === "live";
+  
+  // Get phase label
+  const phaseLabel = sportConfig.phases.find(p => p.id === match.matchPhase)?.label || match.matchPhase;
   
   return (
     <motion.div
@@ -51,10 +61,10 @@ const LiveMatchCard: React.FC<LiveMatchCardProps> = ({ match, onClick }) => {
       onClick={() => onClick(match)}
     >
       <div className="p-4 space-y-3">
-        {/* Header - Sport and Live Badge */}
+        {/* Header - Tournament Name */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{match.tournamentId?.name}</span>
+            <span className="text-xs font-medium text-primary/80">{tournament?.name}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
@@ -68,37 +78,56 @@ const LiveMatchCard: React.FC<LiveMatchCardProps> = ({ match, onClick }) => {
         <div className="space-y-2">
           {/* Team A */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <div
-                className="h-2 w-2 rounded-full shrink-0"
-                style={{ backgroundColor: match.teamA?.teamId?.color || "#3b82f6" }}
-              />
-              <span className="text-sm font-medium truncate">{match.teamA?.teamId?.name || "TBD"}</span>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Avatar className="h-6 w-6 rounded-full shrink-0">
+                {teamA?.logo && <AvatarImage src={teamA.logo} alt={teamA?.name} />}
+                <AvatarFallback 
+                  className="text-[10px] font-bold"
+                  style={{ backgroundColor: teamA?.color ? `${teamA.color}33` : "#3b82f633" }}
+                >
+                  {teamA?.name?.slice(0, 2).toUpperCase() || "A"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium truncate">{teamA?.name || "TBD"}</span>
             </div>
             <span className="text-xl font-bold tabular-nums">{match.teamA?.score ?? 0}</span>
           </div>
           
           {/* Team B */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <div
-                className="h-2 w-2 rounded-full shrink-0"
-                style={{ backgroundColor: match.teamB?.teamId?.color || "#a855f7" }}
-              />
-              <span className="text-sm font-medium truncate">{match.teamB?.teamId?.name || "TBD"}</span>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Avatar className="h-6 w-6 rounded-full shrink-0">
+                {teamB?.logo && <AvatarImage src={teamB.logo} alt={teamB?.name} />}
+                <AvatarFallback 
+                  className="text-[10px] font-bold"
+                  style={{ backgroundColor: teamB?.color ? `${teamB.color}33` : "#a855f733" }}
+                >
+                  {teamB?.name?.slice(0, 2).toUpperCase() || "B"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium truncate">{teamB?.name || "TBD"}</span>
             </div>
             <span className="text-xl font-bold tabular-nums">{match.teamB?.score ?? 0}</span>
           </div>
         </div>
+        
+        {/* Phase indicator */}
+        {phaseLabel && phaseLabel !== "not_started" && (
+          <div className="text-[10px] text-muted-foreground text-center">
+            {phaseLabel}
+          </div>
+        )}
         
         {/* Recent Events */}
         {recentEvents.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1 border-t border-border/30">
             {recentEvents.map((event, idx) => {
               const evConfig = sportConfig.matchEvents.find(e => e.key === event.type);
+              const isTeamA = event.team === "teamA";
+              const teamColor = isTeamA ? teamA?.color : teamB?.color;
               return (
                 <div
-                  key={idx}
+                  key={`${match.id}-event-${idx}-${event.minute}`}
                   className="inline-flex items-center gap-1 text-[10px] bg-muted/50 rounded-full px-2 py-0.5"
                 >
                   <span>{evConfig?.emoji || "⚽"}</span>
