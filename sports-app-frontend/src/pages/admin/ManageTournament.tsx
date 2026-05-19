@@ -27,7 +27,7 @@ import LiveMatchPanel from "@/components/match/LiveMatchPanel";
 import PageBreadcrumbs from "@/components/ui/PageBreadcrumbs";
 import {
   Copy, Users, Shield, AlertTriangle, Trophy, Pencil, Loader2, Image,
-  Swords, CheckCircle2, Clock, Minus, FileText, Star, Play, Layers, Calendar,
+  Swords, CheckCircle2, Clock, Minus, FileText, Star, Play, Layers, Calendar, Save,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -84,7 +84,7 @@ const MatchStatusPill = ({ status }: { status: Match["status"] }) => {
   );
 };
 
-// ── Match card with date picker ────────────────────────────────────────────────
+// ── Match card with date picker and SAVE button ────────────────────────────────
 interface MatchCardProps {
   match: Match;
   sport: SportType;
@@ -92,19 +92,30 @@ interface MatchCardProps {
   onMatchClick: (match: Match) => void;
   onDetailClick: (match: Match) => void;
   onLiveClick: (match: Match) => void;
-  onDateChange?: (matchId: string, date: string) => void;
+  onDateSave?: (matchId: string, date: string) => void;
   isUpdatingDate?: boolean;
 }
 
 const MatchCard = ({
   match, sport, isAdminActive, onMatchClick, onDetailClick, onLiveClick,
-  onDateChange, isUpdatingDate,
+  onDateSave, isUpdatingDate,
 }: MatchCardProps) => {
   const isCompleted = match.status === "completed";
   const isLive = match.status === "live" || match.status === "halftime";
   const isPending = match.status === "upcoming" || match.status === "pending";
   const hasEvents = (match.events?.length ?? 0) > 0;
   const bothTeams = match.teamA != null && match.teamB != null;
+
+  // Local state for date picker
+  const [localDate, setLocalDate] = useState<string>(
+    match.scheduledDate
+      ? format(new Date(match.scheduledDate), "yyyy-MM-dd'T'HH:mm")
+      : ""
+  );
+
+  const hasChanges = localDate !== (match.scheduledDate
+    ? format(new Date(match.scheduledDate), "yyyy-MM-dd'T'HH:mm")
+    : "");
 
   const clickable =
     isAdminActive && match.status !== "bye" && bothTeams && !isLive;
@@ -154,6 +165,12 @@ const MatchCard = ({
       )}
     </div>
   );
+
+  const handleSave = () => {
+    if (onDateSave && localDate) {
+      onDateSave(match.id, localDate);
+    }
+  };
 
   return (
     <Card
@@ -214,8 +231,8 @@ const MatchCard = ({
             </div>
           </div>
 
-          {/* Date picker row - only for upcoming matches */}
-          {canEditDate && onDateChange && (
+          {/* Date picker row with SAVE button - only for upcoming matches */}
+          {canEditDate && onDateSave && (
             <div className="flex items-center justify-between pt-1 border-t border-border/30">
               <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                 <Calendar className="h-3 w-3" />
@@ -224,19 +241,27 @@ const MatchCard = ({
               <div className="flex items-center gap-1">
                 <input
                   type="datetime-local"
-                  value={
-                    match.scheduledDate
-                      ? format(new Date(match.scheduledDate), "yyyy-MM-dd'T'HH:mm")
-                      : ""
-                  }
-                  onChange={(e) => onDateChange(match.id, e.target.value)}
+                  value={localDate}
+                  onChange={(e) => setLocalDate(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                   className="text-[10px] px-1 py-0.5 rounded bg-background border border-border focus:outline-none focus:border-primary"
                   disabled={isUpdatingDate}
                 />
-                {isUpdatingDate && (
-                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSave();
+                  }}
+                  disabled={!localDate || !hasChanges || isUpdatingDate}
+                  className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded bg-primary/20 text-primary hover:bg-primary/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isUpdatingDate ? (
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                  ) : (
+                    <Save className="h-2.5 w-2.5" />
+                  )}
+                  <span>Save</span>
+                </button>
               </div>
             </div>
           )}
@@ -552,12 +577,12 @@ const ManageTournament = () => {
     mutationFn: ({ matchId, scheduledDate }: { matchId: string; scheduledDate: string }) =>
       matchService.updateMatch(matchId, { scheduledDate }),
     onSuccess: () => {
-      toast.success("Match date updated");
+      toast.success("Match date saved!");
       invalidateAll();
       setUpdatingMatchDate(null);
     },
     onError: (e: any) => {
-      toast.error(e?.response?.data?.message || "Failed to update match date");
+      toast.error(e?.response?.data?.message || "Failed to save match date");
       setUpdatingMatchDate(null);
     },
   });
@@ -587,7 +612,7 @@ const ManageTournament = () => {
   const handleDetailClose = () => { invalidateAll(); setDetailMatch(null); };
   const handleLiveSuccess = () => { invalidateAll(); };
 
-  const handleMatchDateChange = (matchId: string, scheduledDate: string) => {
+  const handleMatchDateSave = (matchId: string, scheduledDate: string) => {
     if (!scheduledDate) {
       toast.error("Please select a valid date and time");
       return;
@@ -964,7 +989,7 @@ const ManageTournament = () => {
                             onMatchClick={setSelectedMatch}
                             onDetailClick={setDetailMatch}
                             onLiveClick={setLiveMatch}
-                            onDateChange={handleMatchDateChange}
+                            onDateSave={handleMatchDateSave}
                             isUpdatingDate={updatingMatchDate === match.id}
                           />
                         ))}
@@ -1008,7 +1033,7 @@ const ManageTournament = () => {
                             onMatchClick={setSelectedMatch}
                             onDetailClick={setDetailMatch}
                             onLiveClick={setLiveMatch}
-                            onDateChange={handleMatchDateChange}
+                            onDateSave={handleMatchDateSave}
                             isUpdatingDate={updatingMatchDate === match.id}
                           />
                         ))}
