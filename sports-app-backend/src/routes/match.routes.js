@@ -35,5 +35,6 @@ router.post("/:id/start", protect, restrictTo("admin"), startMatch);
 router.post("/:id/phase", protect, restrictTo("admin"), movePhase);
 router.post("/:id/events/add", protect, restrictTo("admin"), addLiveEvent);
 router.patch("/:id/live-score", protect, restrictTo("admin"), updateLiveScore);
+router.patch("/:id/extra-time", protect, restrictTo("admin"), setExtraTime);
 
 module.exports = router;

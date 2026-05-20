@@ -418,9 +418,42 @@ const updateMatch = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Set extra time for match halves
+// @route   PATCH /api/matches/:id/extra-time
+// @access  Admin
+const setExtraTime = asyncHandler(async (req, res) => {
+  const { half, minutes } = req.body;
+  const match = await Match.findById(req.params.id);
+  if (!match) return res.status(404).json({ success: false, message: "Match not found." });
+  
+  const tournament = await Tournament.findOne({ _id: match.tournamentId, createdBy: req.user._id });
+  if (!tournament) return res.status(403).json({ success: false, message: "Not authorized." });
+  
+  if (half === "first") {
+    match.extraTimeFirstHalf = Math.min(Math.max(0, minutes), 15);
+  } else {
+    match.extraTimeSecondHalf = Math.min(Math.max(0, minutes), 15);
+  }
+  await match.save();
+  
+  emitToTournament(tournament._id.toString(), "match:extraTimeSet", {
+    matchId: match._id,
+    half,
+    minutes,
+  });
+  
+  emitToMatch(match._id.toString(), "match:liveUpdate", {
+    matchId: match._id,
+    extraTimeFirstHalf: match.extraTimeFirstHalf,
+    extraTimeSecondHalf: match.extraTimeSecondHalf,
+  });
+  
+  res.json({ success: true, message: `Extra time set for ${half} half`, data: { match } });
+});
+
 module.exports = {
-  getMatchesByTournament, getMatch,
-  enterScore, confirmResult, editResult, updateEvents,
-  scheduleMatch,
-  startMatch, movePhase, addLiveEvent, updateLiveScore, updateMatch,
+  getMatchesByTournament, getMatch, enterScore, 
+  confirmResult, editResult, updateEvents, scheduleMatch,
+  startMatch, movePhase, addLiveEvent, updateLiveScore, 
+  updateMatch, setExtraTime,
 };

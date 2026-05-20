@@ -15,11 +15,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Play, Pause, SkipForward, CheckCircle } from "lucide-react";
+import { Loader2, Play, Pause, SkipForward, CheckCircle, Plus, Minus } from "lucide-react";
 import { toast } from "sonner";
 import { useSound } from "@/context/SoundContext";
 import MatchClock from "./MatchClock";
 import { cn } from "@/lib/utils";
+
 
 interface LiveMatchPanelProps {
   match: Match;
@@ -37,6 +38,9 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
   const { play } = useSound();
   const queryClient = useQueryClient();
   const config = SPORTS[sport];
+  const [extraTimeFirstHalf, setExtraTimeFirstHalf] = useState<number>(match.extraTimeFirstHalf || 0);
+  const [extraTimeSecondHalf, setExtraTimeSecondHalf] = useState<number>(match.extraTimeSecondHalf || 0);
+  const [showExtraTimeControls, setShowExtraTimeControls] = useState(false);
 
   const [eventType, setEventType] = useState(config.matchEvents[0]?.key ?? "goal");
   const [eventPlayer, setEventPlayer] = useState("");
@@ -106,7 +110,7 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
     onSuccess: (data) => {
       toast.success("Event added");
       if (SCORE_EVENTS.has(eventType)) play("cheer", { volume: 0.3 });
-      
+
       // Emit the event to viewers in real-time
       const newEvent = {
         type: eventType,
@@ -115,14 +119,24 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
         team: eventTeam,
         minute: data?.data?.match?.events?.slice(-1)[0]?.minute || Math.floor(Math.random() * 90) + 1,
       };
-      
+
+      const setExtraTimeMutation = useMutation({
+        mutationFn: ({ half, minutes }: { half: "first" | "second"; minutes: number }) =>
+          matchService.setExtraTime(match.id, half, minutes),
+        onSuccess: () => {
+          toast.success("Extra time set");
+          onSuccess();
+        },
+        onError: () => toast.error("Failed to set extra time"),
+      });
+
       emitLiveUpdate({
         action: "eventAdded",
         latestEvent: newEvent,
         scoreA: data?.data?.scoreA,
         scoreB: data?.data?.scoreB,
       });
-      
+
       setEventPlayer("");
       setEventPlayerOut("");
       onSuccess();
@@ -239,7 +253,73 @@ const LiveMatchPanel: React.FC<LiveMatchPanelProps> = ({
                 Start Match
               </Button>
             )}
+            {/* Extra Time Controls */}
+            {(isLive || isBreak) && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium">Extra Time</h4>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowExtraTimeControls(!showExtraTimeControls)}
+                    className="h-6 text-xs"
+                  >
+                    {showExtraTimeControls ? "Hide" : "Add"}
+                  </Button>
+                </div>
 
+                {showExtraTimeControls && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px]">1st Half Extra (min)</Label>
+                      <div className="flex gap-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={15}
+                          value={extraTimeFirstHalf}
+                          onChange={(e) => setExtraTimeFirstHalf(Number(e.target.value))}
+                          className="h-7 text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setExtraTimeMutation.mutate({ half: "first", minutes: extraTimeFirstHalf })}
+                          disabled={setExtraTimeMutation.isPending}
+                        >
+                          {setExtraTimeMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Set"}
+                        </Button>
+                      </div>
+                      <p className="text-[9px] text-muted-foreground">Extra minutes added to first half stoppage time</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px]">2nd Half Extra (min)</Label>
+                      <div className="flex gap-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={15}
+                          value={extraTimeSecondHalf}
+                          onChange={(e) => setExtraTimeSecondHalf(Number(e.target.value))}
+                          className="h-7 text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setExtraTimeMutation.mutate({ half: "second", minutes: extraTimeSecondHalf })}
+                          disabled={setExtraTimeMutation.isPending}
+                        >
+                          {setExtraTimeMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Set"}
+                        </Button>
+                      </div>
+                      <p className="text-[9px] text-muted-foreground">Extra minutes added to second half stoppage time</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {(isLive || isBreak) && nextPhase && (
               <Button
                 size="sm"

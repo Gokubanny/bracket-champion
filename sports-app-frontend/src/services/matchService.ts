@@ -39,6 +39,10 @@ export const matchService = {
     await api.patch(`/matches/${matchId}/confirm`);
   },
 
+  setExtraTime: async (matchId: string, half: "first" | "second", minutes: number): Promise<void> => {
+    await api.patch(`/matches/${matchId}/extra-time`, { half, minutes });
+  },
+  
   // NEW: Update match details (scheduledDate, status, scores)
   updateMatch: async (
     matchId: string,

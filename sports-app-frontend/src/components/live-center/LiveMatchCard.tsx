@@ -30,8 +30,16 @@ const LiveMatchCard: React.FC<LiveMatchCardProps> = ({ match, onClick }) => {
         const phase = sportConfig.phases.find(p => p.id === match.matchPhase);
         if (phase && !phase.isBreak) {
           const elapsed = Math.floor((Date.now() - new Date(match.currentPhaseStartedAt).getTime()) / 60000);
-          const total = (phase.clockOffset || 0) + elapsed;
-          const mins = Math.min(total, phase.maxMinutes || 90);
+          let total = (phase.clockOffset || 0) + elapsed;
+          
+          // Add extra time if available
+          if (match.extraTimeFirstHalf && match.matchPhase === "first_half") {
+            total += match.extraTimeFirstHalf;
+          } else if (match.extraTimeSecondHalf && match.matchPhase === "second_half") {
+            total += match.extraTimeSecondHalf;
+          }
+          
+          const mins = Math.min(total, (phase.maxMinutes || 90) + (match.extraTimeFirstHalf || 0) + (match.extraTimeSecondHalf || 0));
           const secs = Math.floor((Date.now() - new Date(match.currentPhaseStartedAt).getTime()) / 1000) % 60;
           setElapsedTime(`${mins}'${secs.toString().padStart(2, "0")}"`);
         }
@@ -41,7 +49,7 @@ const LiveMatchCard: React.FC<LiveMatchCardProps> = ({ match, onClick }) => {
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, [match.status, match.currentPhaseStartedAt, match.matchPhase, sportConfig]);
+  }, [match.status, match.currentPhaseStartedAt, match.matchPhase, sportConfig, match.extraTimeFirstHalf, match.extraTimeSecondHalf]);
   
   // Get recent events (last 3)
   const recentEvents = (match.events || []).slice(-3);
@@ -52,13 +60,24 @@ const LiveMatchCard: React.FC<LiveMatchCardProps> = ({ match, onClick }) => {
   // Get phase label
   const phaseLabel = sportConfig.phases.find(p => p.id === match.matchPhase)?.label || match.matchPhase;
   
+  // Handle click with proper team data structure
+  const handleClick = () => {
+    // Ensure team data is properly structured for the viewer
+    const matchWithTeams = {
+      ...match,
+      teamA: teamA,
+      teamB: teamB,
+    };
+    onClick(matchWithTeams);
+  };
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ scale: 1.02 }}
       className="glass-card rounded-xl overflow-hidden cursor-pointer hover:border-primary/50 transition-all duration-300"
-      onClick={() => onClick(match)}
+      onClick={handleClick}
     >
       <div className="p-4 space-y-3">
         {/* Header - Tournament Name */}
@@ -124,7 +143,6 @@ const LiveMatchCard: React.FC<LiveMatchCardProps> = ({ match, onClick }) => {
             {recentEvents.map((event, idx) => {
               const evConfig = sportConfig.matchEvents.find(e => e.key === event.type);
               const isTeamA = event.team === "teamA";
-              const teamColor = isTeamA ? teamA?.color : teamB?.color;
               return (
                 <div
                   key={`${match.id}-event-${idx}-${event.minute}`}

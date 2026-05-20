@@ -8,6 +8,7 @@ import { SPORTS } from "@/constants/sports";
 import type { SportType } from "@/constants/sports";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface LiveMatchViewerProps {
   match: Match;
@@ -15,31 +16,39 @@ interface LiveMatchViewerProps {
   onClose?: () => void;
 }
 
-const EVENT_CONFIG: Record<string, { emoji: string; label: string; color: string }> = {
-  goal: { emoji: "⚽", label: "Goal", color: "text-green-400" },
-  own_goal: { emoji: "🥅", label: "Own Goal", color: "text-red-400" },
-  penalty_goal: { emoji: "🎯", label: "Penalty", color: "text-green-400" },
-  assist: { emoji: "🅰️", label: "Assist", color: "text-blue-400" },
-  yellow_card: { emoji: "🟨", label: "Yellow Card", color: "text-yellow-400" },
-  red_card: { emoji: "🟥", label: "Red Card", color: "text-red-400" },
-  substitution: { emoji: "🔄", label: "Substitution", color: "text-purple-400" },
-  basket_2pt: { emoji: "🏀", label: "2 Points", color: "text-orange-400" },
-  basket_3pt: { emoji: "🏀", label: "3 Points", color: "text-orange-400" },
-  free_throw: { emoji: "🎯", label: "Free Throw", color: "text-orange-400" },
-  foul: { emoji: "⚠️", label: "Foul", color: "text-yellow-400" },
-  ace: { emoji: "🎾", label: "Ace", color: "text-green-400" },
-  block: { emoji: "🛡️", label: "Block", color: "text-blue-400" },
+const EVENT_CONFIG: Record<string, { emoji: string; label: string; color: string; bg: string }> = {
+  goal: { emoji: "⚽", label: "Goal", color: "text-green-400", bg: "bg-green-400/10" },
+  own_goal: { emoji: "🥅", label: "Own Goal", color: "text-red-400", bg: "bg-red-400/10" },
+  penalty_goal: { emoji: "🎯", label: "Penalty", color: "text-green-400", bg: "bg-green-400/10" },
+  assist: { emoji: "🅰️", label: "Assist", color: "text-blue-400", bg: "bg-blue-400/10" },
+  yellow_card: { emoji: "🟨", label: "Yellow Card", color: "text-yellow-400", bg: "bg-yellow-400/10" },
+  red_card: { emoji: "🟥", label: "Red Card", color: "text-red-400", bg: "bg-red-400/10" },
+  substitution: { emoji: "🔄", label: "Substitution", color: "text-purple-400", bg: "bg-purple-400/10" },
+  basket_2pt: { emoji: "🏀", label: "2 Points", color: "text-orange-400", bg: "bg-orange-400/10" },
+  basket_3pt: { emoji: "🏀", label: "3 Points", color: "text-orange-400", bg: "bg-orange-400/10" },
+  free_throw: { emoji: "🎯", label: "Free Throw", color: "text-orange-400", bg: "bg-orange-400/10" },
+  foul: { emoji: "⚠️", label: "Foul", color: "text-yellow-400", bg: "bg-yellow-400/10" },
+  ace: { emoji: "🎾", label: "Ace", color: "text-green-400", bg: "bg-green-400/10" },
+  block: { emoji: "🛡️", label: "Block", color: "text-blue-400", bg: "bg-blue-400/10" },
 };
+
+const DEFAULT_CONFIG = { emoji: "⚽", label: "Event", color: "text-white", bg: "bg-muted/20" };
 
 const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, sport, onClose }) => {
   const [match, setMatch] = useState<Match>(initialMatch);
   const [latestEvent, setLatestEvent] = useState<MatchEvent | null>(null);
   const [showLatestEvent, setShowLatestEvent] = useState(false);
   const [matchTime, setMatchTime] = useState<string>("");
+  const [extraTimeFirstHalf, setExtraTimeFirstHalf] = useState<number>(0);
+  const [extraTimeSecondHalf, setExtraTimeSecondHalf] = useState<number>(0);
 
   const sportConfig = SPORTS[sport];
   const isLive = match.status === "live" || match.status === "halftime";
   const isCompleted = match.status === "completed";
+
+  // Get team data safely
+  const teamA = match.teamA;
+  const teamB = match.teamB;
 
   // Subscribe to live updates
   useEffect(() => {
@@ -82,7 +91,7 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
     };
   }, [match.id]);
 
-  // Update match time periodically
+  // Update match time periodically with extra time support
   useEffect(() => {
     if (!isLive) return;
     
@@ -91,7 +100,15 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
         const phaseConfig = sportConfig.phases.find(p => p.id === match.matchPhase);
         if (phaseConfig && !phaseConfig.isBreak) {
           const elapsed = Math.floor((Date.now() - new Date(match.currentPhaseStartedAt!).getTime()) / 60000);
-          const total = (phaseConfig.clockOffset || 0) + elapsed;
+          let total = (phaseConfig.clockOffset || 0) + elapsed;
+          
+          // Add extra time based on phase
+          if (match.matchPhase === "first_half" && extraTimeFirstHalf > 0) {
+            total += extraTimeFirstHalf;
+          } else if (match.matchPhase === "second_half" && extraTimeSecondHalf > 0) {
+            total += extraTimeSecondHalf;
+          }
+          
           const mins = Math.min(total, phaseConfig.maxMinutes || 90);
           const secs = Math.floor((Date.now() - new Date(match.currentPhaseStartedAt!).getTime()) / 1000) % 60;
           setMatchTime(`${mins}'${secs.toString().padStart(2, "0")}"`);
@@ -100,13 +117,15 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [isLive, match.currentPhaseStartedAt, match.matchPhase, sportConfig]);
+  }, [isLive, match.currentPhaseStartedAt, match.matchPhase, sportConfig, extraTimeFirstHalf, extraTimeSecondHalf]);
 
   const phaseLabel = sportConfig.phases.find(p => p.id === match.matchPhase)?.label || match.matchPhase;
   
-  // Sort events by minute (newest first for live)
-  const sortedEvents = [...(match.events || [])].sort((a, b) => (b.minute || 0) - (a.minute || 0));
-  const recentEvents = sortedEvents.slice(0, 10);
+  // Separate events by team
+  const teamAEvents = (match.events || []).filter(e => e.team === "teamA").sort((a, b) => (a.minute || 0) - (b.minute || 0));
+  const teamBEvents = (match.events || []).filter(e => e.team === "teamB").sort((a, b) => (a.minute || 0) - (b.minute || 0));
+
+  const getEventConfig = (type: string) => EVENT_CONFIG[type] || DEFAULT_CONFIG;
 
   return (
     <div className="live-match-viewer rounded-xl overflow-hidden border border-border bg-gradient-to-b from-card to-background">
@@ -134,18 +153,16 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
         <div className="flex items-center justify-between gap-4">
           {/* Team A */}
           <div className="flex-1">
-            <div
-              className="h-16 w-16 rounded-full mx-auto mb-3 flex items-center justify-center shadow-lg"
-              style={{ backgroundColor: (match.teamA?.color ?? "#3b82f6") + "33" }}
-            >
-              <span
+            <Avatar className="h-16 w-16 mx-auto mb-3 shadow-lg">
+              {teamA?.logo && <AvatarImage src={teamA.logo} alt={teamA?.name} />}
+              <AvatarFallback 
                 className="text-xl font-bold"
-                style={{ color: match.teamA?.color ?? "#3b82f6" }}
+                style={{ backgroundColor: teamA?.color ? `${teamA.color}33` : "#3b82f633", color: teamA?.color || "#3b82f6" }}
               >
-                {match.teamA?.name?.slice(0, 2).toUpperCase() ?? "A"}
-              </span>
-            </div>
-            <p className="font-semibold text-lg truncate px-2">{match.teamA?.name ?? "TBD"}</p>
+                {teamA?.name?.slice(0, 2).toUpperCase() ?? "A"}
+              </AvatarFallback>
+            </Avatar>
+            <p className="font-semibold text-lg truncate px-2">{teamA?.name ?? "TBD"}</p>
           </div>
 
           {/* Score */}
@@ -168,18 +185,16 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
 
           {/* Team B */}
           <div className="flex-1">
-            <div
-              className="h-16 w-16 rounded-full mx-auto mb-3 flex items-center justify-center shadow-lg"
-              style={{ backgroundColor: (match.teamB?.color ?? "#a855f7") + "33" }}
-            >
-              <span
+            <Avatar className="h-16 w-16 mx-auto mb-3 shadow-lg">
+              {teamB?.logo && <AvatarImage src={teamB.logo} alt={teamB?.name} />}
+              <AvatarFallback 
                 className="text-xl font-bold"
-                style={{ color: match.teamB?.color ?? "#a855f7" }}
+                style={{ backgroundColor: teamB?.color ? `${teamB.color}33` : "#a855f733", color: teamB?.color || "#a855f7" }}
               >
-                {match.teamB?.name?.slice(0, 2).toUpperCase() ?? "B"}
-              </span>
-            </div>
-            <p className="font-semibold text-lg truncate px-2">{match.teamB?.name ?? "TBD"}</p>
+                {teamB?.name?.slice(0, 2).toUpperCase() ?? "B"}
+              </AvatarFallback>
+            </Avatar>
+            <p className="font-semibold text-lg truncate px-2">{teamB?.name ?? "TBD"}</p>
           </div>
         </div>
 
@@ -219,73 +234,91 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
           >
             <div className="flex items-center justify-center gap-2 text-sm">
               <span className="font-mono text-muted-foreground">{latestEvent.minute}'</span>
-              <span>{EVENT_CONFIG[latestEvent.type]?.emoji || "⚽"}</span>
+              <span>{getEventConfig(latestEvent.type).emoji}</span>
               <span className="font-semibold">{latestEvent.player}</span>
-              <span className="text-muted-foreground">{EVENT_CONFIG[latestEvent.type]?.label}</span>
+              <span className="text-muted-foreground">{getEventConfig(latestEvent.type).label}</span>
               <span
                 className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: latestEvent.team === "teamA" ? match.teamA?.color : match.teamB?.color }}
+                style={{ backgroundColor: latestEvent.team === "teamA" ? teamA?.color : teamB?.color }}
               />
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Event Timeline - Live updates */}
+      {/* Events Section - Under each team */}
       <div className="border-t border-border p-4">
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
           <span>📋 Match Events</span>
           {isLive && <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />}
         </h4>
         
-        {recentEvents.length > 0 ? (
-          <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
-            {recentEvents.map((event, idx) => {
-              const config = EVENT_CONFIG[event.type] || { emoji: "⚽", label: event.type, color: "text-white" };
-              const isTeamA = event.team === "teamA";
-              const teamColor = isTeamA ? match.teamA?.color : match.teamB?.color;
-              
-              return (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, x: isTeamA ? -20 : 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
-                    isTeamA ? "flex-row" : "flex-row-reverse",
-                    "bg-muted/30"
-                  )}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Team A Events */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 pb-2 border-b border-border/30">
+              <Avatar className="h-5 w-5">
+                {teamA?.logo && <AvatarImage src={teamA.logo} alt={teamA?.name} />}
+                <AvatarFallback 
+                  className="text-[8px]"
+                  style={{ backgroundColor: teamA?.color ? `${teamA.color}33` : "#3b82f633" }}
                 >
-                  <span className="font-mono text-xs text-muted-foreground w-10 text-center shrink-0">
-                    {event.minute || "—"}'
-                  </span>
-                  <span className="text-base shrink-0">{config.emoji}</span>
-                  <div className={cn("flex-1 min-w-0", !isTeamA && "text-right")}>
-                    <span className="font-medium">{event.player}</span>
-                    {event.playerOut && (
-                      <span className="text-xs text-muted-foreground ml-1">
-                        (in: {event.playerOut})
-                      </span>
-                    )}
-                    <span className="text-xs text-muted-foreground ml-2">{config.label}</span>
+                  {teamA?.name?.slice(0, 1).toUpperCase() || "A"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-xs font-semibold truncate">{teamA?.name || "Team A"}</span>
+            </div>
+            {teamAEvents.length > 0 ? (
+              teamAEvents.map((event, idx) => {
+                const cfg = getEventConfig(event.type);
+                return (
+                  <div key={idx} className="flex items-center gap-2 text-xs bg-muted/20 rounded-md px-2 py-1.5">
+                    <span className="font-mono text-muted-foreground w-8">{event.minute}'</span>
+                    <span className={cfg.color}>{cfg.emoji}</span>
+                    <span className="font-medium truncate flex-1">{event.player}</span>
+                    {event.playerOut && <span className="text-[10px] text-muted-foreground">→ {event.playerOut}</span>}
                   </div>
-                  <span
-                    className="h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: teamColor }}
-                  />
-                </motion.div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <p className="text-[10px] text-muted-foreground text-center py-2">No events yet</p>
+            )}
           </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground text-sm">
-            <p>No events recorded yet</p>
-            <p className="text-xs mt-1">Events will appear here as the match progresses</p>
+
+          {/* Team B Events */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 pb-2 border-b border-border/30 justify-end">
+              <span className="text-xs font-semibold truncate">{teamB?.name || "Team B"}</span>
+              <Avatar className="h-5 w-5">
+                {teamB?.logo && <AvatarImage src={teamB.logo} alt={teamB?.name} />}
+                <AvatarFallback 
+                  className="text-[8px]"
+                  style={{ backgroundColor: teamB?.color ? `${teamB.color}33` : "#a855f733" }}
+                >
+                  {teamB?.name?.slice(0, 1).toUpperCase() || "B"}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+            {teamBEvents.length > 0 ? (
+              teamBEvents.map((event, idx) => {
+                const cfg = getEventConfig(event.type);
+                return (
+                  <div key={idx} className="flex items-center gap-2 text-xs bg-muted/20 rounded-md px-2 py-1.5 justify-end">
+                    {event.playerOut && <span className="text-[10px] text-muted-foreground">{event.playerOut} →</span>}
+                    <span className="font-medium truncate text-right">{event.player}</span>
+                    <span className={cfg.color}>{cfg.emoji}</span>
+                    <span className="font-mono text-muted-foreground w-8 text-right">{event.minute}'</span>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-[10px] text-muted-foreground text-center py-2">No events yet</p>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Match Stats Placeholder */}
+      {/* Match Stats */}
       {isLive && (
         <div className="border-t border-border p-4 bg-muted/10">
           <div className="grid grid-cols-2 gap-4 text-xs">

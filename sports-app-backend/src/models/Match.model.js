@@ -76,6 +76,8 @@ const matchSchema = new mongoose.Schema(
     // ── Formations ────────────────────────────────────────────
     teamAFormation: { type: String, default: null },
     teamBFormation: { type: String, default: null },
+    extraTimeFirstHalf: { type: Number, default: 0 },
+    extraTimeSecondHalf: { type: Number, default: 0 },
 
     // ── Live Match Tracking ───────────────────────────────────
     // Phases: not_started | first_half | half_time | second_half |
