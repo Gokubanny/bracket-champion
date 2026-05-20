@@ -12,7 +12,8 @@ const {
   movePhase,
   addLiveEvent,
   updateLiveScore,
-  updateMatch, // ← Add this import
+  updateMatch,
+  setExtraTime, 
 } = require("../controllers/match.controller");
 const { protect, restrictTo } = require("../middleware/auth.middleware");
 

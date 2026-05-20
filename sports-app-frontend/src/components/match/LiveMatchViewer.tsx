@@ -1,5 +1,3 @@
-// src/components/match/LiveMatchViewer.tsx
-
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { socketService } from "@/services/socketService";
@@ -39,8 +37,6 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
   const [latestEvent, setLatestEvent] = useState<MatchEvent | null>(null);
   const [showLatestEvent, setShowLatestEvent] = useState(false);
   const [matchTime, setMatchTime] = useState<string>("");
-  const [extraTimeFirstHalf, setExtraTimeFirstHalf] = useState<number>(0);
-  const [extraTimeSecondHalf, setExtraTimeSecondHalf] = useState<number>(0);
 
   const sportConfig = SPORTS[sport];
   const isLive = match.status === "live" || match.status === "halftime";
@@ -53,15 +49,19 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
   // Subscribe to live updates
   useEffect(() => {
     const socket = socketService.getSocket();
+    if (!socket) return;
     
     const handleLiveUpdate = (data: any) => {
+      console.log("📡 Live update received:", data);
+      
       if (data.matchId === match.id) {
         setMatch(prev => ({
           ...prev,
-          scoreA: data.scoreA ?? prev.scoreA,
-          scoreB: data.scoreB ?? prev.scoreB,
+          scoreA: data.scoreA !== undefined ? data.scoreA : prev.scoreA,
+          scoreB: data.scoreB !== undefined ? data.scoreB : prev.scoreB,
           matchPhase: data.matchPhase ?? prev.matchPhase,
           events: data.events ?? prev.events,
+          status: data.status ?? prev.status,
         }));
         
         if (data.latestEvent) {
@@ -73,6 +73,7 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
     };
     
     const handlePhaseChange = (data: any) => {
+      console.log("📡 Phase change received:", data);
       if (data.matchId === match.id) {
         setMatch(prev => ({
           ...prev,
@@ -82,16 +83,16 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
       }
     };
     
-    socket?.on("match:liveUpdate", handleLiveUpdate);
-    socket?.on("match:phaseChange", handlePhaseChange);
+    socket.on("match:liveUpdate", handleLiveUpdate);
+    socket.on("match:phaseChange", handlePhaseChange);
     
     return () => {
-      socket?.off("match:liveUpdate", handleLiveUpdate);
-      socket?.off("match:phaseChange", handlePhaseChange);
+      socket.off("match:liveUpdate", handleLiveUpdate);
+      socket.off("match:phaseChange", handlePhaseChange);
     };
   }, [match.id]);
 
-  // Update match time periodically with extra time support
+  // Update match time periodically
   useEffect(() => {
     if (!isLive) return;
     
@@ -102,14 +103,14 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
           const elapsed = Math.floor((Date.now() - new Date(match.currentPhaseStartedAt!).getTime()) / 60000);
           let total = (phaseConfig.clockOffset || 0) + elapsed;
           
-          // Add extra time based on phase
-          if (match.matchPhase === "first_half" && extraTimeFirstHalf > 0) {
-            total += extraTimeFirstHalf;
-          } else if (match.matchPhase === "second_half" && extraTimeSecondHalf > 0) {
-            total += extraTimeSecondHalf;
+          // Add extra time from match object if available
+          if ((match as any).extraTimeFirstHalf && match.matchPhase === "first_half") {
+            total += (match as any).extraTimeFirstHalf;
+          } else if ((match as any).extraTimeSecondHalf && match.matchPhase === "second_half") {
+            total += (match as any).extraTimeSecondHalf;
           }
           
-          const mins = Math.min(total, phaseConfig.maxMinutes || 90);
+          const mins = Math.min(total, (phaseConfig.maxMinutes || 90) + ((match as any).extraTimeFirstHalf || 0) + ((match as any).extraTimeSecondHalf || 0));
           const secs = Math.floor((Date.now() - new Date(match.currentPhaseStartedAt!).getTime()) / 1000) % 60;
           setMatchTime(`${mins}'${secs.toString().padStart(2, "0")}"`);
         }
@@ -117,7 +118,7 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [isLive, match.currentPhaseStartedAt, match.matchPhase, sportConfig, extraTimeFirstHalf, extraTimeSecondHalf]);
+  }, [isLive, match.currentPhaseStartedAt, match.matchPhase, sportConfig, match]);
 
   const phaseLabel = sportConfig.phases.find(p => p.id === match.matchPhase)?.label || match.matchPhase;
   
@@ -163,6 +164,19 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
               </AvatarFallback>
             </Avatar>
             <p className="font-semibold text-lg truncate px-2">{teamA?.name ?? "TBD"}</p>
+            {/* Team A Events under the team name */}
+            <div className="mt-2 space-y-1">
+              {teamAEvents.slice(-3).map((event, idx) => {
+                const cfg = getEventConfig(event.type);
+                return (
+                  <div key={idx} className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+                    <span className={cfg.color}>{cfg.emoji}</span>
+                    <span>{event.player}</span>
+                    <span className="font-mono">({event.minute}')</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Score */}
@@ -195,6 +209,19 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
               </AvatarFallback>
             </Avatar>
             <p className="font-semibold text-lg truncate px-2">{teamB?.name ?? "TBD"}</p>
+            {/* Team B Events under the team name */}
+            <div className="mt-2 space-y-1">
+              {teamBEvents.slice(-3).map((event, idx) => {
+                const cfg = getEventConfig(event.type);
+                return (
+                  <div key={idx} className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+                    <span className={cfg.color}>{cfg.emoji}</span>
+                    <span>{event.player}</span>
+                    <span className="font-mono">({event.minute}')</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -246,10 +273,10 @@ const LiveMatchViewer: React.FC<LiveMatchViewerProps> = ({ match: initialMatch, 
         )}
       </AnimatePresence>
 
-      {/* Events Section - Under each team */}
+      {/* Full Events Section */}
       <div className="border-t border-border p-4">
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-          <span>📋 Match Events</span>
+          <span>📋 All Events</span>
           {isLive && <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />}
         </h4>
         
